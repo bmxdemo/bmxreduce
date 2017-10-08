@@ -5,8 +5,14 @@ from datetime import datetime, timedelta
 
 class datamanager(object):
     
-    def __init__(self, tag=None):
+    def __init__(self, tag=None, dataroot=None):
         # Do nothing
+        if dataroot is None:
+            if os.environ.has_key('BMXDATA'):
+                dataroot=os.env['BMXDATA']
+            else:
+                dataroot='/gpfs01/astro/workarea/bmxdata'
+        self.dataroot=dataroot
         return
 
 
@@ -21,7 +27,7 @@ class datamanager(object):
 
         # Get list of directories with raw data, which let's say are directories
         # matching pattern 20??
-        dirs = glob('data/raw/20[0-9][0-9]')
+        dirs = glob(self.dataroot+'/raw/20[0-9][0-9]')
 
         # Initialize tag list
         tags = []
@@ -97,13 +103,13 @@ class datamanager(object):
     def getrawfname(self, tag):
         """Get filename from tag"""
         taginfo = self.parsetag(tag)
-        return os.path.join('data','raw','20'+taginfo[0], tag+'.data')
+        return os.path.join(self.dataroot,'raw','20'+taginfo[0], tag+'.data')
 
 
     def getreducedfname(self, tag):
         """Get filename from tag"""
         taginfo = self.parsetag(tag)
-        return os.path.join('data','reduced','20'+taginfo[0], tag+'_reduced.data')
+        return os.path.join(self.dataroot,'reduced','20'+taginfo[0], tag+'_reduced.data')
 
     def loadcsvbydate(self, fname, tag):
         """Get dated csv file closest in time and before tag matching pattern:

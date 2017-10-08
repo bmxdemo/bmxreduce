@@ -14,33 +14,34 @@ dm = datamanager()
 
 class reduce(object):
 
-    def __init__(self, tag):
-        """ Init with a tag string or data structure, e.g.
-        r = reduce('170928_1000')
-        or
-        d = bmxdata.BMXFile('data/2017/170928_1000.data')
-        r = reduce(d)
+    def __init__(self, tags):
+        """ Init with a tag string E.g.
+        d = reduc('170928_1000')
+        or a list of tag strings ** ASSUMED TO BE CONSEQUENT **
+        d = reduc(['170928_1000','170928_1100'])
         """
 
-
-        if type(tag) == bmxdata.BMXFile:
-            # Raw data already loaded
-            self.tag = dm.fname2tag(tag.fname)
-            self.d = tag
-            self.rawfname = dm.getrawfname(self.tag)
-            self.redfname = dm.getreducedfname(self.tag)
-        else:
-            # Store tag string, get filename, and load data
-            self.tag = tag
-            self.rawfname = dm.getrawfname(self.tag)
-            self.redfname = dm.getreducedfname(self.tag)
-            self.d = bmxdata.BMXFile(self.rawfname)
+        # Store tag string and get filename
+        if type(tags)==str:
+            tags=[tags]
+        self.tags = tags
+        self.rawfnames = [dm.getrawfname(tag) for tag in tags]
+        self.redfnames = dm.getreducedfname(tag[0]) ## fix this
+        self.d = None
+        for fn in self.rawfnames:
+            da=bmxdata.BMXFile(fn)
+            if self.d is None:
+                self.d = da
+            else:
+                self.d.data=np.hstack((self.d.data, da.data))
+        self.d.nSamples=len(self.d.data)
 
         # Construct raw data time array (seconds from start)
         self.t = np.arange(self.d.nSamples)*self.d.deltaT
-        
-        # Now do reduction
-        self.doreduce()
+
+        ## commented out for now, perhaps you want to do something else [AS]
+        ## Now do reduction
+        ## self.doreduce()
 
 
     def doreduce(self):
@@ -137,26 +138,28 @@ class reduce(object):
             s = self.ind['sc'][k]
             e = self.ind['ec'][k]
 
+            # Data immediately before
+            ind = np.where(self.ind['ed'] < s)[0]
+            sdb = self.ind['sd'][ind[-1]]
+            edb = self.ind['ed'][ind[-1]]
             # Data immediately after
             ind = np.where(self.ind['sd'] > e)[0]
             if len(ind) > 0:
-                sd = self.ind['sd'][ind[0]]
-                ed = self.ind['ed'][ind[0]]
+                sda = self.ind['sd'][ind[0]]
+                eda = self.ind['ed'][ind[0]]
             else:
-                # Data immediately before
-                ind = np.where(self.ind['ed'] < s)[0]
-                sd = self.ind['sd'][ind[-1]]
-                ed = self.ind['ed'][ind[-1]]
+                # use before twice
+                sda=sdb
+                eda=edb
                         
             # Time is mean of cal times
             self.caltime[k] = np.mean(self.t[s:(e+1)])
 
             for j in range(self.d.nChan):
                 chn = self.getchname(j)
-                self.cal[j,k,:]  = np.nanmean(self.d.data[chn][s:(e+1),:],0)
-                self.dat[j,k,:]  = np.nanmean(self.d.data[chn][sd:(ed+1),:],0)
-                # Use mean of cal temperature during data, which has more samples 
-                #and is less noisy. Really we probably want to smooth first.
+                self.cal[j,k,:] = np.mean(self.d.data[chn][s:(e+1),:],0)
+                self.dat[j,k,:] = 0.5 * (np.mean(self.d.data[chn][sda:(eda+1),:],0)+
+                                         np.mean(self.d.data[chn][sdb:(edb+1),:],0))
                 self.Tcal[j,k,:] = np.nanmean(self.Tcalfast[j,sd:(ed+1),:],0) 
 
         # Get cal factor in ADU^2 / K
