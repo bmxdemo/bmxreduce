@@ -8,7 +8,7 @@ class datamanager(object):
     def __init__(self, tag=None, dataroot=None):
         # Do nothing
         if dataroot is None:
-            if os.environ.has_key('BMXDATA')
+            if os.environ.has_key('BMXDATA'):
                 dataroot=os.env['BMXDATA']
             else:
                 dataroot='/gpfs01/astro/workarea/bmxdata'
