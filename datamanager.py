@@ -29,7 +29,7 @@ class datamanager(object):
         # Loop over dirs
         for k,val in enumerate(dirs):
             fn = glob(os.path.join(val,'*.data'))
-            fn = [self.fn2tag(x) for x in fn]
+            fn = [self.fname2tag(x) for x in fn]
             for j in fn:
                 tags.append(j)
         
@@ -46,13 +46,14 @@ class datamanager(object):
         st = [self.tag2datetime(k) for k in tags]
         et = [k + timedelta(hours=1) for k in st]
 
-        # Now go through and get rid of tags that fall within the cut times
+        # Turn into numpy arrays
         sc = np.array(sc)
         ec = np.array(ec)
         st = np.array(st)
         et = np.array(et)
         tags = np.array(tags)
 
+        # Now go through and get rid of tags that fall within the cut times
         for k in range(sc.size):
             ind1 = (st>=sc[k]) & (st<ec[k])
             ind2 = (et>=sc[k]) & (et<ec[k])
@@ -74,7 +75,7 @@ class datamanager(object):
         """Turn tag string into datetime object"""
         return datetime.strptime(tag.strip(), '%y%m%d_%H%M')
 
-    def fn2tag(self, fn):
+    def fname2tag(self, fn):
         """Turn filename into tag string. Assumes path is
         "dir/totallyarbitrary/YYMMDD_HHMM+whatever.anything" and returns the
         "YYMMDD_HHMM" portion"""
@@ -103,3 +104,22 @@ class datamanager(object):
         """Get filename from tag"""
         taginfo = self.parsetag(tag)
         return os.path.join('data','reduced','20'+taginfo[0], tag+'_reduced.data')
+
+    def loadcsvbydate(self, fname, tag):
+        """Get dated csv file closest in time and before tag matching pattern:
+        auxdata/fname_YYYYMMDD.csv"""
+        fn = np.array(glob('auxdata/{:s}_*.csv'.format(fname)))
+        fndate = np.array([np.float(x[-10:-4]) for x in fn])
+        tagdate = np.float(tag[0:6])
+        ind = np.where(fndate < tagdate)[0]
+
+        fn = fn[ind]
+        fndate = fndate[ind]
+        
+        ind = np.where(fndate == np.max(fndate))[0][0]
+        
+        print('loading {:s}'.format(fn[ind]))
+        x = np.loadtxt(fn[ind], delimiter=',', comments='#')
+
+        return x
+
