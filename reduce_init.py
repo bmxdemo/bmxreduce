@@ -3,23 +3,38 @@ import bmxdata
 from datamanager import datamanager
 from reduce_plot import genplots
 import os
+import astropy.units as u
+from astropy.coordinates import EarthLocation, AltAz,SkyCoord
+from astropy.time import Time
 
+telescope_loc = EarthLocation(lat=40.87792*u.deg, lon=-72.85852*u.deg, height=0*u.m)
+
+# Initialize empty data manager so we can use its functions
+dm = datamanager()
 
 class reduce(object):
 
     def __init__(self, tag):
-        """ Init with a tag string E.g.
-        d = reduc('170928_1000')
+        """ Init with a tag string or data structure, e.g.
+        r = reduce('170928_1000')
+        or
+        d = bmxdata.BMXFile('data/2017/170928_1000.data')
+        r = reduce(d)
         """
 
-        # Initialize empty data manager so we can use its functions
-        dm = datamanager()
 
-        # Store tag string and get filename
-        self.tag = tag
-        self.rawfname = dm.getrawfname(tag)
-        self.redfname = dm.getreducedfname(tag)
-        self.d = bmxdata.BMXFile(self.rawfname)
+        if type(tag) == bmxdata.BMXFile:
+            # Raw data already loaded
+            self.tag = dm.fname2tag(tag.fname)
+            self.d = tag
+            self.rawfname = dm.getrawfname(self.tag)
+            self.redfname = dm.getreducedfname(self.tag)
+        else:
+            # Store tag string, get filename, and load data
+            self.tag = tag
+            self.rawfname = dm.getrawfname(self.tag)
+            self.redfname = dm.getreducedfname(self.tag)
+            self.d = bmxdata.BMXFile(self.rawfname)
 
         # Construct raw data time array (seconds from start)
         self.t = np.arange(self.d.nSamples)*self.d.deltaT
@@ -45,10 +60,10 @@ class reduce(object):
         
         # Huge kludge because indices don't synch up with data correctly 
         # (CDS 10/2/17)
-        ind = np.roll(ind,1)
-        ind[0] = ind[1]
+        self.calind = np.roll(ind,1)
+        self.calind[0] = self.calind[1]
 
-        dind = ind - np.roll(ind,1)
+        dind = self.calind - np.roll(self.calind,1)
         chind = np.where(dind != 0)[0]
         chind = chind[chind>0] # Change on first index is not true
 
@@ -85,11 +100,37 @@ class reduce(object):
         ncal = self.ind['sc'].size
         nf = self.d.freq[0].size
 
-        self.Tcal = 2000 # Assume calibrator adds this power
+        # Calibrator ENR and any attenuation. Can be actually measured later
+        self.ENR = 15 # dB
+        self.calAtten = -10.0 # dB
+        
+        # Load cal port coupling
+        x = dm.loadcsvbydate('S21_calport', self.tag)
+        
+        # Physical calibrator temperature. Should be measured temp as function
+        # of time when we have it.
+        self.Tcalphys = 290.0
+
+        # Injected noise temperature. Interpolate measured cal port S21 onto
+        # frequency grid
+        f =  self.d.freq[0]
+        fi = x[:,0]/1e6
+        S21x = np.interp(f, fi, x[:,1])
+        S21y = np.interp(f, fi, x[:,2])
+        self.Tcalfast = np.zeros((self.d.nChan, self.d.nSamples, nf))
+
+        # This is the excess temperature with the calibrator on
+        self.Tcalfast[0, :, :] = self.Tcalphys*10**((S21x+self.calAtten)/10.)*(10**(self.ENR/10.)-1)
+        self.Tcalfast[1, :, :] = self.Tcalphys*10**((S21y+self.calAtten)/10.)*(10**(self.ENR/10.)-1)
+        
+
+        ############################
+        # Now take mean of cal and data
 
         self.cal = np.zeros((self.d.nChan,ncal,nf)) # Mean of cal chunks
         self.dat = np.zeros((self.d.nChan,ncal,nf)) # Mean of surrounding data chunks
-        self.calt = np.zeros(ncal)
+        self.Tcal = np.zeros((self.d.nChan,ncal,nf)) # Mean of surrounding data chunks
+        self.caltime = np.zeros(ncal)
 
         for k in range(ncal):
             # Cal start/stop indices
@@ -108,16 +149,19 @@ class reduce(object):
                 ed = self.ind['ed'][ind[-1]]
                         
             # Time is mean of cal times
-            self.calt[k] = np.mean(self.t[s:(e+1)])
+            self.caltime[k] = np.mean(self.t[s:(e+1)])
 
             for j in range(self.d.nChan):
                 chn = self.getchname(j)
-                self.cal[j,k,:] = np.mean(self.d.data[chn][s:(e+1),:],0)
-                self.dat[j,k,:] = np.mean(self.d.data[chn][sd:(ed+1),:],0)
-
+                self.cal[j,k,:]  = np.nanmean(self.d.data[chn][s:(e+1),:],0)
+                self.dat[j,k,:]  = np.nanmean(self.d.data[chn][sd:(ed+1),:],0)
+                # Use mean of cal temperature during data, which has more samples 
+                #and is less noisy. Really we probably want to smooth first.
+                self.Tcal[j,k,:] = np.nanmean(self.Tcalfast[j,sd:(ed+1),:],0) 
 
         # Get cal factor in ADU^2 / K
         self.g = (self.cal - self.dat)/self.Tcal
+
 
     def getchname(self,chanind):
         """Return channel name string given channel INDEX (i.e. starting from zero)"""
@@ -138,7 +182,7 @@ class reduce(object):
                 v = dx[:,k]
                 v = v-np.nanmean(v)
                 
-                # Get middle 80th percentile 
+                # Get middle 80th percentile of cal off data
                 p = np.percentile(v,[10,90])
                 ind = (v>p[0]) & (v<p[1])
                 std0 = np.nanstd(v[ind])
@@ -157,6 +201,15 @@ class reduce(object):
                 maskind = maskind.astype('bool')
 
                 self.mask[j, maskind, k] = 0
+
+    def getradec(self):
+        """Get RA/Dec coordinates"""
+        time = Time(self.d.data['mjd'], format='mjd')
+        point = AltAz(alt=90*u.deg, az=0*u.deg, location=telescope_loc, obstime=time)
+        sky = point.transform_to(SkyCoord(0*u.deg, 0*u.deg, frame='icrs'))
+        self.ra = sky.ra
+        self.dec = sky.dec
+
 
     def savedata(self):
         """Save reduced data after stripping raw data"""
