@@ -11,7 +11,7 @@ class datamanager(object):
             if os.environ.has_key('BMXDATA'):
                 dataroot=os.env['BMXDATA']
             else:
-                dataroot='/gpfs01/astro/workarea/bmxdata'
+                dataroot='data'  ## make sure data softlinks to some actual position
         self.dataroot=dataroot
         return
 
