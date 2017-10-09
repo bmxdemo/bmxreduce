@@ -9,7 +9,7 @@ class datamanager(object):
         # Do nothing
         if dataroot is None:
             if os.environ.has_key('BMXDATA'):
-                dataroot=os.env['BMXDATA']
+                dataroot=os.environ['BMXDATA']
             else:
                 dataroot='data'  ## make sure data softlinks to some actual position
         self.dataroot=dataroot
