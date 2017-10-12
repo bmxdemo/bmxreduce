@@ -3,6 +3,7 @@ import bmxdata
 from datamanager import datamanager
 from reduce_plot import genplots
 import os
+import cPickle as cP
 import astropy.units as u
 from astropy.coordinates import EarthLocation, AltAz,SkyCoord
 from astropy.time import Time
@@ -11,37 +12,24 @@ telescope_loc = EarthLocation(lat=40.87792*u.deg, lon=-72.85852*u.deg, height=0*
 
 # Initialize empty data manager so we can use its functions
 dm = datamanager()
+dm.gettags()
 
 class reduce(object):
 
-    def __init__(self, tags):
+    def __init__(self, tag):
         """ Init with a tag string E.g.
         d = reduc('170928_1000')
-        or a list of tag strings ** ASSUMED TO BE CONSEQUENT **
-        d = reduc(['170928_1000','170928_1100'])
         """
 
         # Store tag string and get filename
-        if type(tags)==str:
-            tags=[tags]
-        self.tags = tags
-        self.rawfnames = [dm.getrawfname(tag) for tag in tags]
-        self.redfnames = dm.getreducedfname(tag[0]) ## fix this
-        self.d = None
-        for fn in self.rawfnames:
-            da=bmxdata.BMXFile(fn)
-            if self.d is None:
-                self.d = da
-            else:
-                self.d.data=np.hstack((self.d.data, da.data))
-        self.d.nSamples=len(self.d.data)
+        self.tag = tag
+        self.rawfname = dm.getrawfname(tag)
+        self.redfname = dm.getreducedfname(tag) 
+        self.d = bmxdata.BMXFile(self.rawfname)
 
-        # Construct raw data time array (seconds from start)
-        self.t = np.arange(self.d.nSamples)*self.d.deltaT
-
-        ## commented out for now, perhaps you want to do something else [AS]
-        ## Now do reduction
-        ## self.doreduce()
+        # Now concatenate on either side with data from adjacent tags if the
+        # data are consecutive
+        #self.paddata()
 
 
     def doreduce(self):
@@ -49,22 +37,40 @@ class reduce(object):
         self.getind()
         self.maskdata()
         self.getcal()
+        self.applycal()
+        self.downsample()
         genplots(self)
         self.savedata()
+
+
+    def paddata(self):
+        """Concatenate data before and after if it exists and is consecutive"""
+        ind = np.where(dm.tags == self.tag)[0][0]
+        
+        # Store start/stop time of data
+        self.mjdspan = [self.d.data['mjd'][[0,-1]]] 
+
+        if ind >= 1:
+            # Load tag before
+            tag0 = dm.tags[ind-1]
+            da = bmxdata.BMXFile(dm.getrawfname(tag0))
+            self.d.data=np.hstack((self.d.data, da.data))
+
+        self.d.nSamples=len(self.d.data)
 
 
     def getind(self):
         """Get array of start/stop indices for cal and data. Not fully tested
         for data with cal starting or stopping on first or last indices."""
 
-        ind = self.d.data['lj_diode']
+        ind = self.d.data['lj_diode'].astype('bool')
         
         # Huge kludge because indices don't synch up with data correctly 
         # (CDS 10/2/17)
         self.calind = np.roll(ind,1)
         self.calind[0] = self.calind[1]
 
-        dind = self.calind - np.roll(self.calind,1)
+        dind = self.calind*1.0 - np.roll(self.calind,1)
         chind = np.where(dind != 0)[0]
         chind = chind[chind>0] # Change on first index is not true
 
@@ -121,9 +127,8 @@ class reduce(object):
         self.Tcalfast = np.zeros((self.d.nChan, self.d.nSamples, nf))
 
         # This is the excess temperature with the calibrator on
-        self.Tcalfast[0, :, :] = self.Tcalphys*10**((S21x+self.calAtten)/10.)*(10**(self.ENR/10.)-1)
-        self.Tcalfast[1, :, :] = self.Tcalphys*10**((S21y+self.calAtten)/10.)*(10**(self.ENR/10.)-1)
-        
+        self.Tcalfast[0, :, :] = self.Tcalphys*10**((S21x+self.calAtten+self.ENR)/10.)
+        self.Tcalfast[1, :, :] = self.Tcalphys*10**((S21y+self.calAtten+self.ENR)/10.)        
 
         ############################
         # Now take mean of cal and data
@@ -131,7 +136,6 @@ class reduce(object):
         self.cal = np.zeros((self.d.nChan,ncal,nf)) # Mean of cal chunks
         self.dat = np.zeros((self.d.nChan,ncal,nf)) # Mean of surrounding data chunks
         self.Tcal = np.zeros((self.d.nChan,ncal,nf)) # Mean of surrounding data chunks
-        self.caltime = np.zeros(ncal)
 
         for k in range(ncal):
             # Cal start/stop indices
@@ -152,58 +156,98 @@ class reduce(object):
                 sda=sdb
                 eda=edb
                         
-            # Time is mean of cal times
-            self.caltime[k] = np.mean(self.t[s:(e+1)])
-
             for j in range(self.d.nChan):
                 chn = self.getchname(j)
-                self.cal[j,k,:] = np.mean(self.d.data[chn][s:(e+1),:],0)
-                self.dat[j,k,:] = 0.5 * (np.mean(self.d.data[chn][sda:(eda+1),:],0)+
-                                         np.mean(self.d.data[chn][sdb:(edb+1),:],0))
-                self.Tcal[j,k,:] = np.nanmean(self.Tcalfast[j,sd:(ed+1),:],0) 
+                self.cal[j,k,:] = np.nanmean(self.d.data[chn][s:(e+1),:],0)
+                self.dat[j,k,:] = 0.5 * (np.nanmean(self.d.data[chn][sda:(eda+1),:],0)+
+                                         np.nanmean(self.d.data[chn][sdb:(edb+1),:],0))
+                self.Tcal[j,k,:] = np.nanmean(self.Tcalfast[j,sdb:(eda+1),:],0)
 
         # Get cal factor in ADU^2 / K
         self.g = (self.cal - self.dat)/self.Tcal
+
+
+    def applycal(self):
+        """Apply calibration, for now median of gain over time. Then subtract 4th
+        order poly as function of time"""
+
+        for j in range(self.d.nChan):
+
+            # Mean of gain over time
+            self.gmean = np.nanmean(self.g[j], 0)
+            
+            # ADU^2 -> K
+            chn = self.getchname(j)
+            self.d.data[chn] = self.d.data[chn]/self.gmean
 
 
     def getchname(self,chanind):
         """Return channel name string given channel INDEX (i.e. starting from zero)"""
         return 'chan{:d}_0'.format(chanind+1)
 
+
     def maskdata(self):
-        """Mask raw data based on 1st time deriv"""
+        """Mask raw data, data and cal data separately."""
         
-        self.mask = np.ones((self.d.nChan,self.d.nSamples, self.d.freq[0].size))
+        self.mask = np.ones((self.d.nChan,self.d.nSamples, self.d.freq[0].size)).astype('bool')
+        t0 = np.arange(self.d.nSamples)*self.d.deltaT
 
         for j in range(self.d.nChan):
+
             chn = self.getchname(j)
-            dx = self.d.data[chn] - np.roll(self.d.data[chn],1,axis=0)
-            dx[0,:] = 0
+            x = self.d.data[chn]
 
             # Loop over frequencies
-            for k in range(dx.shape[1]):
-                v = dx[:,k]
-                v = v-np.nanmean(v)
+            for k in range(x.shape[1]):
+
+                # Initialize mask array
+                maskind = np.zeros(x.shape[0]).astype('bool')
+
+                # Loop over cal on and cal off separately
+                for l in range(2):
+
+                    if l==0:
+                        ci = ~self.calind # Cal off data
+                    else:
+                        ci = self.calind # Cal on data
+
+                    # Get 1st deriv of data. There are gaps in the data for cal
+                    # on/off so dt is not constant, but that's okay.
+                    dx = x[ci,k] - np.roll(x[ci,k], 1, axis=0)
+                    dx[0] = 0
+
+                    t = t0[ci]
+
+                    # Poly subtract data
+                    v = dx
+                    p = np.polyfit(t, v, 4)
+                    v = v - np.polyval(p, t)
+
+                    # Get std of middle 80th percentile of values
+                    p = np.percentile(v,[10,90])
+                    ind = (v>p[0]) & (v<p[1])
+                    std0 = np.nanstd(v[ind])
+
+                    # Mask 7 sigma outliers
+                    maskind[ci] = np.abs(v) > 5*std0
+
+                # Expand masked data by some number of samples on either side
+                #ker = np.ones(2)
+                #maskind = np.convolve(maskind.astype('float'), ker, 'same')
+                #maskind[maskind != 0] = 1
+                #maskind = maskind.astype('bool')
+
+                # Mask first and last of cal ind
+                maskind[self.ind['sc']] = True
+                maskind[self.ind['ec']] = True
+                maskind[self.ind['sd']] = True
+                maskind[self.ind['ed']] = True
+
+                self.mask[j, maskind, k] = False
                 
-                # Get middle 80th percentile of cal off data
-                p = np.percentile(v,[10,90])
-                ind = (v>p[0]) & (v<p[1])
-                std0 = np.nanstd(v[ind])
+            # Set masked data to NaN
+            self.d.data[chn][~self.mask[j,:,:]] = np.nan
 
-                # Mask 7 sigma outliers
-                maskind = np.abs(v) > 7*std0
-
-                # Unmark known calibrator on/off swings
-                maskind[self.ind['sc']]   = 0
-                maskind[self.ind['ec']+1] = 0
-
-                # Expand by some number of samples on either side
-                ker = np.ones(5)
-                maskind = np.convolve(maskind.astype('float'), ker, 'same')
-                maskind[maskind != 0] = 1
-                maskind = maskind.astype('bool')
-
-                self.mask[j, maskind, k] = 0
 
     def getradec(self):
         """Get RA/Dec coordinates"""
@@ -214,6 +258,61 @@ class reduce(object):
         self.dec = sky.dec
 
 
-    def savedata(self):
-        """Save reduced data after stripping raw data"""
+    def downsample(self, dt=5.0):
+        """Downsample data, dt in seconds."""
         
+        self.dt = dt
+
+        # MJD array has steps, make it not so
+        mjd = self.d.data['mjd']
+        mjd = np.linspace(mjd[0], mjd[-1], len(mjd))
+        
+        # Binned mjd edges
+        mjdbin = np.arange(mjd[0], mjd[-1], dt/3600./24.)
+        if mjdbin[-1] != mjd[-1]:
+            np.append(mjdbin, mjd[-1])
+
+        # Bin data
+        nbin = len(mjdbin)-1
+        self.data  = np.full((self.d.nChan, nbin, self.d.freq[0].size), np.nan)
+        self.var   = np.full((self.d.nChan, nbin, self.d.freq[0].size), np.nan)
+        self.nhits = np.full((self.d.nChan, nbin, self.d.freq[0].size), np.nan)
+        self.mjd   = np.full(nbin, np.nan)
+
+        for k in range(nbin):
+            ind = np.where( (mjd >= mjdbin[k]) & (mjd < mjdbin[k+1]) )[0]
+            self.mjd[k] = np.nanmean(mjd[ind])
+
+            for j in range(self.d.nChan):
+                chn = self.getchname(j)
+                dat = self.d.data[chn][ind, :]
+                
+                # Mask cal on data
+                dat[self.calind[ind],:] = np.nan
+
+                # Get stats
+                mu = np.nanmean(dat, 0) # Mean
+                var = np.nanvar(dat, 0) # Variance
+                nhits = np.nansum(~np.isnan(dat), 0) # N hits
+                
+                # Require Nhits >= 50%
+                ndat = dat.shape[0]
+                badind = nhits < 0.5*ndat
+                mu[badind] = np.nan
+                var[badind] = np.inf
+
+                # Store
+                self.data[j, k, :]  = mu
+                self.var[j, k, :]   = var
+                self.nhits[j, k, :] = nhits
+
+
+    def savedata(self):
+        """Save reduced data after stripping raw data. Using numpy instead of
+        cPickle because it seems to be much faster and will save time when
+        coadding over many files, especially if doing so for many sim
+        realizations."""
+        np.savez(self.redfname, cal=self.cal, calAtten=self.calAtten,
+                 dat=self.dat, data=self.data, dt=self.dt, ENR=self.ENR,
+                 g=self.g, mjd=self.mjd, nhits=self.nhits, tag=self.tag,
+                 Tcal=self.Tcal, Tcalphys=self.Tcalphys) 
