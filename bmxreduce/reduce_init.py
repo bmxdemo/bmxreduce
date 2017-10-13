@@ -315,4 +315,4 @@ class reduce(object):
         np.savez(self.redfname, cal=self.cal, calAtten=self.calAtten,
                  dat=self.dat, data=self.data, dt=self.dt, ENR=self.ENR,
                  g=self.g, mjd=self.mjd, nhits=self.nhits, tag=self.tag,
-                 Tcal=self.Tcal, Tcalphys=self.Tcalphys) 
+                 Tcal=self.Tcal, Tcalphys=self.Tcalphys, f=self.d.freq[0]) 
