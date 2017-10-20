@@ -1,0 +1,10 @@
+# Frequency intervals to mask in MHz. If min and max are same value, then the
+# single frequency bin containing this frequency is masked
+0, 1103
+1105.17, 1105.17
+1130.15, 1130.15
+1155.12, 1155.12
+1180.23, 1180.23
+1200.51, 1201.18
+1205.21, 1205.21
+1510.00, 2000.00
