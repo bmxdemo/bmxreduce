@@ -7,6 +7,7 @@ import cPickle as cP
 import astropy.units as u
 from astropy.coordinates import EarthLocation, AltAz,SkyCoord
 from astropy.time import Time
+import matplotlib.pyplot as plt
 
 telescope_loc = EarthLocation(lat=40.87792*u.deg, lon=-72.85852*u.deg, height=0*u.m)
 
@@ -188,48 +189,78 @@ class reduce(object):
 
     def maskdata(self):
         """Mask raw data, data and cal data separately."""
-        
-        self.mask = np.ones((self.d.nChan,self.d.nSamples, self.d.freq[0].size)).astype('bool')
+
+        # Initialize mask array (1 for good, 0 for bad)
+        mask = np.ones((self.d.nChan,self.d.nSamples, self.d.freq[0].size)).astype('bool')
+
+        # Create time array
         t0 = np.arange(self.d.nSamples)*self.d.deltaT
 
+        # Load the frequency mask that applies to all times and all
+        # channels. These frequencies will never make it through.
+        mf = dm.loadcsvbydate('freqmask', self.tag)
+
+        # Loop over channels
         for j in range(self.d.nChan):
 
             chn = self.getchname(j)
             x = self.d.data[chn]
 
+            ###############
+            # Mask Outliers
             # Loop over frequencies
             for k in range(x.shape[1]):
 
                 # Initialize mask array
                 maskind = np.zeros(x.shape[0]).astype('bool')
 
-                # Loop over cal on and cal off separately
-                for l in range(2):
+                # Do the masking step this many times
+                nmask = 2
+                for nm in range(nmask):
+                
+                    # Loop over cal on and cal off separately
+                    for l in range(2):
 
-                    if l==0:
-                        ci = ~self.calind # Cal off data
-                    else:
-                        ci = self.calind # Cal on data
+                        if l==0:
+                            ci = ~self.calind # Cal off data
+                        else:
+                            ci = self.calind # Cal on data
 
-                    # Get 1st deriv of data. There are gaps in the data for cal
-                    # on/off so dt is not constant, but that's okay.
-                    dx = x[ci,k] - np.roll(x[ci,k], 1, axis=0)
-                    dx[0] = 0
+                        # Mask various outliers in v, dv/dt, etc.
+                        for m in range(2):
 
-                    t = t0[ci]
+                            if m==0:
+                                # Get data itself
+                                v = x[ci,k]
+                            else:
+                                # Get 1st deriv of data. There are gaps in the data for cal
+                                # on/off but they're short so that's okay.
+                                v = x[ci,k] - np.roll(x[ci,k], 1, axis=0)
+                                v[0] = 0
 
-                    # Poly subtract data
-                    v = dx
-                    p = np.polyfit(t, v, 4)
-                    v = v - np.polyval(p, t)
+                            # Times
+                            t = t0[ci]
 
-                    # Get std of middle 80th percentile of values
-                    p = np.percentile(v,[10,90])
-                    ind = (v>p[0]) & (v<p[1])
-                    std0 = np.nanstd(v[ind])
+                            # Find where data is not already masked
+                            gi = np.where(np.isfinite(v))
+                            gt = t[gi]; gv = v[gi]
+                            if len(gv) < 0.2*len(v):
+                                # If more than 80% of the data is already NaN,
+                                # mask the whole thing
+                                maskind[ci] = True
+                            else:
+                                # Poly subtract data
+                                p = np.polyfit(gt, gv, 4)
+                                v = v - np.polyval(p, t)
 
-                    # Mask 7 sigma outliers
-                    maskind[ci] = np.abs(v) > 5*std0
+                                # Get std of middle 80th percentile of values
+                                p = np.nanpercentile(v,[10,90])
+                                ind = (v>p[0]) & (v<p[1])
+                                std0 = np.nanstd(v[ind])
+
+                                # Mask 5 sigma outliers
+                                maskind[ci] = (maskind[ci]) | (np.abs(v) > 5*std0)
+
 
                 # Expand masked data by some number of samples on either side
                 #ker = np.ones(2)
@@ -243,10 +274,31 @@ class reduce(object):
                 maskind[self.ind['sd']] = True
                 maskind[self.ind['ed']] = True
 
-                self.mask[j, maskind, k] = False
-                
+                mask[j, maskind, k] = False
+
+
+            ###############################
+            # Always mask these frequencies
+            f  = self.d.freq[0]
+            df = f[1] - f[0]
+            fe = np.linspace(f[0]-df/2, f[-1]+df/2, f.size+1)
+            felo = fe[0:-1]
+            fehi = fe[1:]
+            for k in range(mf.shape[0]):
+                f0 = mf[k,0]
+                f1 = mf[k,1]
+                ind = np.where((fehi>=f0) & (felo<=f1))
+                mask[j, :, ind] = False
+
             # Set masked data to NaN
-            self.d.data[chn][~self.mask[j,:,:]] = np.nan
+            self.d.data[chn][~mask[j,:,:]] = np.nan
+
+        ############
+        # Store mask
+        if hasattr(self,'mask'):
+            self.mask = self.mask & mask
+        else:
+            self.mask = mask
 
 
     def getradec(self):
