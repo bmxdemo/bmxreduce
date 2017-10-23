@@ -36,16 +36,25 @@ class reduce(object):
     def doreduce(self):
         """Do full reduction of a chunk of spectrometer data"""
         self.getind()
+
+        # Plot unmasked raw data
+        p = genplots(self)
+        p.plotrawdata(fext='_nomask')
+
         self.maskdata()
+        p.plotrawdata(fext='_mask')
+
         self.getcal()
         self.applycal()
+        p.plotrawdata(fext='_cal')
+
         self.downsample()
-        genplots(self)
         self.savedata()
 
 
     def paddata(self):
-        """Concatenate data before and after if it exists and is consecutive"""
+        """Concatenate data before and after if it exists and is
+        consecutive. Not sure if this currently works."""
         ind = np.where(dm.tags == self.tag)[0][0]
         
         # Store start/stop time of data
