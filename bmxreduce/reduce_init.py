@@ -28,6 +28,10 @@ class reduce(object):
         self.redfname = dm.getreducedfname(tag) 
         self.d = bmxdata.BMXFile(self.rawfname)
 
+        # Get frequency array
+        self.f = self.d.freq[0]
+        self.dtraw = self.d.deltaT[0]
+
         # Now concatenate on either side with data from adjacent tags if the
         # data are consecutive
         #self.paddata()
@@ -39,16 +43,20 @@ class reduce(object):
 
         # Plot unmasked raw data
         p = genplots(self)
-        p.plotrawdata(fext='_nomask')
+        p.plotrawwf(fext='_nomask')
 
         self.maskdata()
-        p.plotrawdata(fext='_mask')
+        p.plotrawwf(fext='_mask')
+        p.plotrawspec()
 
         self.getcal()
         self.applycal()
-        p.plotrawdata(fext='_cal')
+        p.plotrawwf(fext='_cal')
+        p.plotrawwf(fext='_callin', cscale='lin')
 
         self.downsample()
+        p.plotcalwf()
+
         self.savedata()
 
 
@@ -115,11 +123,11 @@ class reduce(object):
         """Get gain cal"""
 
         ncal = self.ind['sc'].size
-        nf = self.d.freq[0].size
+        nf = self.f.size
 
         # Calibrator ENR and any attenuation. Can be actually measured later
         self.ENR = 15 # dB
-        self.calAtten = -10.0 # dB
+        self.calAtten = 0.0 # dB
         
         # Load cal port coupling
         x = dm.loadcsvbydate('S21_calport', self.tag)
@@ -130,10 +138,12 @@ class reduce(object):
 
         # Injected noise temperature. Interpolate measured cal port S21 onto
         # frequency grid
-        f =  self.d.freq[0]
+        f =  self.f
         fi = x[:,0]/1e6
-        S21x = np.interp(f, fi, x[:,1])
-        S21y = np.interp(f, fi, x[:,2])
+        #S21x = np.interp(f, fi, x[:,1])
+        #S21y = np.interp(f, fi, x[:,2])
+        S21x = -30.0
+        S21y = -30.0
         self.Tcalfast = np.zeros((self.d.nChan, self.d.nSamples, nf))
 
         # This is the excess temperature with the calibrator on
@@ -178,17 +188,16 @@ class reduce(object):
 
 
     def applycal(self):
-        """Apply calibration, for now median of gain over time. Then subtract 4th
-        order poly as function of time"""
+        """Apply calibration, for now mean of gain over time."""
 
         for j in range(self.d.nChan):
 
             # Mean of gain over time
-            self.gmean = np.nanmean(self.g[j], 0)
+            gmean = np.nanmean(self.g[j], 0)
             
             # ADU^2 -> K
             chn = self.getchname(j)
-            self.d.data[chn] = self.d.data[chn]/self.gmean
+            self.d.data[chn] = self.d.data[chn]/gmean
 
 
     def getchname(self,chanind):
@@ -200,7 +209,7 @@ class reduce(object):
         """Mask raw data, data and cal data separately."""
 
         # Initialize mask array (1 for good, 0 for bad)
-        mask = np.ones((self.d.nChan,self.d.nSamples, self.d.freq[0].size)).astype('bool')
+        mask = np.ones((self.d.nChan,self.d.nSamples, self.f.size)).astype('bool')
 
         # Create time array
         t0 = np.arange(self.d.nSamples)*self.d.deltaT
@@ -288,7 +297,7 @@ class reduce(object):
 
             ###############################
             # Always mask these frequencies
-            f  = self.d.freq[0]
+            f  = self.f
             df = f[1] - f[0]
             fe = np.linspace(f[0]-df/2, f[-1]+df/2, f.size+1)
             felo = fe[0:-1]
@@ -335,9 +344,9 @@ class reduce(object):
 
         # Bin data
         nbin = len(mjdbin)-1
-        self.data  = np.full((self.d.nChan, nbin, self.d.freq[0].size), np.nan)
-        self.var   = np.full((self.d.nChan, nbin, self.d.freq[0].size), np.nan)
-        self.nhits = np.full((self.d.nChan, nbin, self.d.freq[0].size), np.nan)
+        self.data  = np.full((self.d.nChan, nbin, self.f.size), np.nan)
+        self.var   = np.full((self.d.nChan, nbin, self.f.size), np.nan)
+        self.nhits = np.full((self.d.nChan, nbin, self.f.size), np.nan)
         self.mjd   = np.full(nbin, np.nan)
 
         for k in range(nbin):
@@ -376,4 +385,4 @@ class reduce(object):
         np.savez(self.redfname, cal=self.cal, calAtten=self.calAtten,
                  dat=self.dat, data=self.data, dt=self.dt, ENR=self.ENR,
                  g=self.g, mjd=self.mjd, nhits=self.nhits, tag=self.tag,
-                 Tcal=self.Tcal, Tcalphys=self.Tcalphys, f=self.d.freq[0]) 
+                 Tcal=self.Tcal, Tcalphys=self.Tcalphys, f=self.f, dtraw=self.dtraw) 
