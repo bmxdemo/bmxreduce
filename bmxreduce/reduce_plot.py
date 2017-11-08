@@ -1,10 +1,14 @@
 import matplotlib.pyplot as plt
+import matplotlib as mpl
 import numpy as np
 import reduce_init
 from astropy.time import Time
 import os
 import datamanager
 
+mpl.rcParams['image.interpolation']='none' # Turn off interpolation for image display
+mpl.rcParams['image.aspect']='auto' # Auto aspect ratio by default
+plt.rc('legend',**{'fontsize':10}) # Legend fonts are too big
 plt.ioff()
 
 def nanhist(x, **kwargs):
