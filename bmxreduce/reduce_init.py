@@ -8,6 +8,7 @@ import astropy.units as u
 from astropy.coordinates import EarthLocation, AltAz,SkyCoord
 from astropy.time import Time
 import matplotlib.pyplot as plt
+import time
 
 telescope_loc = EarthLocation(lat=40.87792*u.deg, lon=-72.85852*u.deg, height=0*u.m)
 
@@ -26,7 +27,11 @@ class reduce(object):
         self.tag = tag
         self.rawfname = dm.getrawfname(tag)
         self.redfname = dm.getreducedfname(tag) 
+
+        print('loading data...')
+        t = time.time()
         self.d = bmxdata.BMXFile(self.rawfname)
+        print('...took {:0.1f} sec'.format(time.time()-t))
 
         # Get frequency array
         self.f = self.d.freq[0]
@@ -43,22 +48,51 @@ class reduce(object):
 
         # Plot unmasked raw data
         p = genplots(self)
+
+        print('plotting raw waterfall...')
+        t = time.time()
         p.plotrawwf(fext='_nomask')
-
-        self.maskdata()
-        p.plotrawwf(fext='_mask')
         p.plotrawspec()
+        print('...took {:0.1f} sec'.format(time.time()-t))
 
+        print('masking data...')
+        t = time.time()
+        self.maskdata()
+        print('...took {:0.1f} sec'.format(time.time()-t))
+
+        print('plotting masked waterfall...')
+        t = time.time()
+        p.plotrawwf(fext='_mask')
+        print('...took {:0.1f} sec'.format(time.time()-t))
+
+        print('calibrating data...')
+        t = time.time()
         self.getcal()
         self.applycal()
+        print('...took {:0.1f} sec'.format(time.time()-t))
+
+        print('plotting calibrated waterfall (log and lin)...')
+        t = time.time()
         p.plotrawwf(fext='_cal')
         p.plotrawwf(fext='_callin', cscale='lin')
+        print('...took {:0.1f} sec'.format(time.time()-t))
 
+        print('downsampling and filtering data for plots...')
+        t = time.time()
         self.downsample()
+        self.meanfilter()
+        self.svdfilter()
+        print('...took {:0.1f} sec'.format(time.time()-t))
+
+        print('plotting downsampled waterfall and power spectra...')
+        t = time.time()
         p.plotcalwf()
+        p.plotps()
+        print('...took {:0.1f} sec'.format(time.time()-t))
 
+        print('saving data...')
         self.savedata()
-
+        print('...took {:0.1f} sec'.format(time.time()-t))
 
     def paddata(self):
         """Concatenate data before and after if it exists and is
@@ -326,6 +360,51 @@ class reduce(object):
         sky = point.transform_to(SkyCoord(0*u.deg, 0*u.deg, frame='icrs'))
         self.ra = sky.ra
         self.dec = sky.dec
+
+
+    def meanfilter(self):
+        """Subtract mean over time from each frequency bin."""
+
+        # Empty array
+        self.data_mf = np.zeros(self.data.shape)
+
+        # Mean filter
+        for k,val in enumerate(self.data):
+            self.data_mf[k] = val - np.nanmean(val,0)
+
+
+    def svdfilter(self):
+        """Singular value decompose data, zero first 10 modes, and convert
+        back"""        
+        self.data_svd = np.zeros(self.data.shape)
+
+        # SVD filter
+        for k,val in enumerate(self.data):
+            # Pull out data
+            v = self.data[k]*1.0
+
+            # First mean filter
+            v = v - np.nanmean(v, 0)
+
+            # Normalize data to avoid RFI messing up SVD component separation
+            norm = np.nanstd(v,0)**2
+
+            # Prevent NaNs
+            v[~np.isfinite(v)]=0
+            norm[~np.isfinite(norm)]=np.inf
+
+            # SVD decomp
+            U,s,V = np.linalg.svd(v/norm,full_matrices=True)
+
+            # Now zero out first 10 components and convert back to data
+            ss=np.zeros(v.shape)
+            np.fill_diagonal(ss,s)
+            ss[0:10,0:10] = 0
+            vv = U.dot(ss.dot(V))
+
+            # Now replace data
+            norm[~np.isfinite(norm)] = np.nan
+            self.data_svd[k] = vv* norm
 
 
     def downsample(self, dt=5.0):
