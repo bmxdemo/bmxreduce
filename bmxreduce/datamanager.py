@@ -38,35 +38,37 @@ class datamanager(object):
             fn = [self.fname2tag(x) for x in fn]
             for j in fn:
                 tags.append(j)
-        
+
         # Load times to cut, convert to datetime objects
         x = np.loadtxt('auxdata/cuttimes.csv', delimiter=',', comments='#', dtype='string')
-        sc = [datetime.strptime(k.strip(), '%Y-%m-%d:%H:%M:%S') for k in x[:,0] ]
-        ec = [datetime.strptime(k.strip(), '%Y-%m-%d:%H:%M:%S') for k in x[:,1] ]
-        
-        # Convert tags to datetime objects. Right way to do this would be to
-        # load data and get actual start/top times down to the hour, optionally
-        # saving a separate csv file to avoid repeating. We will instead be
-        # cheesy and get start times from the filename, assume they occur
-        # exactly on the minute, and assume all data files last one hour.
-        st = [self.tag2datetime(k) for k in tags]
-        et = [k + timedelta(hours=1) for k in st]
+        if len(x)>0:
 
-        # Turn into numpy arrays
-        sc = np.array(sc)
-        ec = np.array(ec)
-        st = np.array(st)
-        et = np.array(et)
-        tags = np.array(tags)
+            sc = [datetime.strptime(k.strip(), '%Y-%m-%d:%H:%M:%S') for k in x[:,0] ]
+            ec = [datetime.strptime(k.strip(), '%Y-%m-%d:%H:%M:%S') for k in x[:,1] ]
+    
+            # Convert tags to datetime objects. Right way to do this would be to
+            # load data and get actual start/top times down to the hour, optionally
+            # saving a separate csv file to avoid repeating. We will instead be
+            # cheesy and get start times from the filename, assume they occur
+            # exactly on the minute, and assume all data files last one hour.
+            st = [self.tag2datetime(k) for k in tags]
+            et = [k + timedelta(hours=1) for k in st]
 
-        # Now go through and get rid of tags that fall within the cut times
-        for k in range(sc.size):
-            ind1 = (st>=sc[k]) & (st<ec[k])
-            ind2 = (et>=sc[k]) & (et<ec[k])
-            ind = ind1 | ind2
-            tags = tags[~ind]
-            et = et[~ind]
-            st = st[~ind]
+            # Turn into numpy arrays
+            sc = np.array(sc)
+            ec = np.array(ec)
+            st = np.array(st)
+            et = np.array(et)
+            tags = np.array(tags)
+
+            # Now go through and get rid of tags that fall within the cut times
+            for k in range(sc.size):
+                ind1 = (st>=sc[k]) & (st<ec[k])
+                ind2 = (et>=sc[k]) & (et<ec[k])
+                ind = ind1 | ind2
+                tags = tags[~ind]
+                et = et[~ind]
+                st = st[~ind]
 
         if new:
             # Only return tags lacking a reduced file
@@ -109,7 +111,7 @@ class datamanager(object):
     def getreducedfname(self, tag):
         """Get filename from tag"""
         taginfo = self.parsetag(tag)
-        return os.path.join(self.dataroot,'reduced','20'+taginfo[0], tag+'_reduced.data')
+        return os.path.join(self.dataroot,'reduced','20'+taginfo[0], tag+'_reduced.data.npz')
 
     def loadcsvbydate(self, fname, tag):
         """Get dated csv file closest in time and before tag matching pattern:
