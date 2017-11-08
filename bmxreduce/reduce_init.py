@@ -20,7 +20,7 @@ class reduce(object):
 
     def __init__(self, tag):
         """ Init with a tag string E.g.
-        d = reduc('170928_1000')
+        r = reduce('170928_1000')
         """
 
         # Store tag string and get filename
