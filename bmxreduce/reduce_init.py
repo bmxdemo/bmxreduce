@@ -7,7 +7,6 @@ import cPickle as cP
 import astropy.units as u
 from astropy.coordinates import EarthLocation, AltAz,SkyCoord
 from astropy.time import Time
-import matplotlib.pyplot as plt
 import time
 
 telescope_loc = EarthLocation(lat=40.87792*u.deg, lon=-72.85852*u.deg, height=0*u.m)
@@ -197,16 +196,25 @@ class reduce(object):
             e = self.ind['ec'][k]
 
             # Data immediately before
-            ind = np.where(self.ind['ed'] < s)[0]
-            sdb = self.ind['sd'][ind[-1]]
-            edb = self.ind['ed'][ind[-1]]
+            indb = np.where(self.ind['ed'] < s)[0]
             # Data immediately after
-            ind = np.where(self.ind['sd'] > e)[0]
-            if len(ind) > 0:
-                sda = self.ind['sd'][ind[0]]
-                eda = self.ind['ed'][ind[0]]
-            else:
+            inda = np.where(self.ind['sd'] > e)[0]
+
+            if (len(inda) > 0) & (len(indb) > 0):
+                sdb = self.ind['sd'][indb[-1]]
+                edb = self.ind['ed'][indb[-1]]
+                sda = self.ind['sd'][inda[0]]
+                eda = self.ind['ed'][inda[0]]
+            elif len(inda) > 0:
+                # use after twice
+                sda = self.ind['sd'][inda[0]]
+                eda = self.ind['ed'][inda[0]]
+                sdb=sda
+                edb=eda
+            elif len(indb) > 0:
                 # use before twice
+                sdb = self.ind['sd'][indb[-1]]
+                edb = self.ind['ed'][indb[-1]]
                 sda=sdb
                 eda=edb
                         
@@ -390,11 +398,14 @@ class reduce(object):
             norm = np.nanstd(v,0)**2
 
             # Prevent NaNs
-            v[~np.isfinite(v)]=0
-            norm[~np.isfinite(norm)]=np.inf
+            v[~np.isfinite(v)] = 0
+            norm[~np.isfinite(norm)] = np.inf
+            rat = v/norm
+            rat[~np.isfinite(rat)]
+
 
             # SVD decomp
-            U,s,V = np.linalg.svd(v/norm,full_matrices=True)
+            U,s,V = np.linalg.svd(rat,full_matrices=True)
 
             # Now zero out first 10 components and convert back to data
             ss=np.zeros(v.shape)

@@ -11,7 +11,7 @@ h.gentagpages()
 
 dm = br.datamanager()
 dm.gettags(new=True)
-f = farmit.farmit('bin/reduce_batch.py', args={'t':dm.tags}, reqs={'N':4})
+f = farmit.farmit('bin/reduce_batch.py', args={'t':dm.tags}, reqs={'N':4,'X':0})
 f.writejobfiles()
 f.runjobs(maxjobs=500)
 

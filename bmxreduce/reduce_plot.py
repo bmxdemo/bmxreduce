@@ -1,13 +1,16 @@
-import matplotlib.pyplot as plt
 import matplotlib as mpl
+mpl.use('Agg')
+mpl.rcParams['image.interpolation']='none' # Turn off interpolation for image display
+mpl.rcParams['image.aspect']='auto' # Auto aspect ratio by default
+
+import matplotlib.pyplot as plt
 import numpy as np
 import reduce_init
 from astropy.time import Time
 import os
 import datamanager
+import gc
 
-mpl.rcParams['image.interpolation']='none' # Turn off interpolation for image display
-mpl.rcParams['image.aspect']='auto' # Auto aspect ratio by default
 plt.rc('legend',**{'fontsize':10}) # Legend fonts are too big
 plt.ioff()
 
@@ -40,6 +43,7 @@ class genplots():
 
         # Close all open plots
         plt.close('all')
+        gc.collect()
 
         return
 
@@ -85,9 +89,12 @@ class genplots():
             plt.title('raw {:s} adc ({:s}) -- {:s} - {:s} (UTC)'.format(chn,titlab,self.ts.iso,self.te.iso))
             plt.colorbar(pad=0)
 
-            fname = self.filebase + '_'+chn+'_wfraw'+fext+'.jpg'
+            fname       = self.filebase + '_'+chn+'_wfraw'+fext+'.jpg'
+            fname_thumb = self.filebase + '_'+chn+'_wfraw'+fext+'_thumbnail.jpg'
             plt.savefig(os.path.join(self.plotdir,fname), dpi=self.dpi*fac, bbox_inches='tight')
+            plt.savefig(os.path.join(self.plotdir,fname_thumb), dpi=self.dpi, bbox_inches='tight')
             plt.close(fig)
+            gc.collect()
 
     def plotrawspec(self, dochan=None):
         """Plot raw time average spectrum"""
@@ -129,6 +136,7 @@ class genplots():
             fname = self.filebase + '_'+chn+'_specraw.png'
             plt.savefig(os.path.join(self.plotdir,fname), bbox_inches='tight')
             plt.close(fig)
+            gc.collect()
 
 
     def plotcalwf(self, dochan=None):
@@ -193,9 +201,13 @@ class genplots():
                 plt.title('{:s} {:s} -- {:s} - {:s} (UTC)'.format(chn,titlab,self.ts.iso,self.te.iso))
                 plt.colorbar(pad=0)
 
-                fname = self.filebase + '_'+chn+'_wfcal_'+fext+'.png'
+                fname       = self.filebase + '_'+chn+'_wfcal_'+fext+'.png'
+                fname_thumb = self.filebase + '_'+chn+'_wfcal_'+fext+'_thumbnail.png' 
                 plt.savefig(os.path.join(self.plotdir,fname), dpi=self.dpi*fac, bbox_inches='tight')
+                plt.savefig(os.path.join(self.plotdir,fname_thumb), dpi=self.dpi, bbox_inches='tight')
+
                 plt.close(fig)
+                gc.collect()
 
                 # Plot median
                 fig = plt.figure(figsize=(7,5))
@@ -208,8 +220,10 @@ class genplots():
 
                 fname = self.filebase + '_'+chn+'_medcal_'+fext+'.png'
                 plt.savefig(os.path.join(self.plotdir,fname), bbox_inches='tight')
+
                 plt.close(fig)
-                
+                gc.collect()
+
 
     def plotvariance(self, dochan=None, fld_in=['data_mf','data_svd']):
         """Plot variance and expected variance from radiometer equation"""
@@ -258,7 +272,8 @@ class genplots():
                 fname = self.filebase + '_'+chn+'_variance_'+fld+'.png'
                 plt.savefig(os.path.join(self.plotdir,fname), bbox_inches='tight')
                 plt.close(fig)
-            
+                gc.collect()
+
 
     def plotps(self, dochan=None, fld_in=['data_mf','data_svd']):
         """Plot power spectrum over time for each frequency"""
@@ -297,9 +312,13 @@ class genplots():
                 plt.title('Power spectrum (K^2), {:s}, {:s}'.format(chn,self.r.tag))
                 plt.colorbar(pad=0)
 
-                fname = self.filebase + '_'+chn+'_pswf_'+fld+'.png'
+                fname       = self.filebase + '_'+chn+'_pswf_'+fld+'.png'
+                fname_thumb = self.filebase + '_'+chn+'_pswf_'+fld+'_thumbnail.png'
+                plt.savefig(os.path.join(self.plotdir,fname_thumb), dpi=self.dpi, bbox_inches='tight')
                 plt.savefig(os.path.join(self.plotdir,fname), dpi=self.dpi*fac, bbox_inches='tight')
                 plt.close(fig)
+                gc.collect()
+
 
                 # Plot linear
                 fig = plt.figure(figsize=(7,5))
@@ -318,6 +337,8 @@ class genplots():
                 fname = self.filebase + '_'+chn+'_psloglog_'+fld+'.png'
                 plt.savefig(os.path.join(self.plotdir,fname), bbox_inches='tight')
                 plt.close(fig)
+                gc.collect()
+
 
 
 class genhtml():
@@ -360,16 +381,19 @@ class genhtml():
         f.write(' } else {\n')
         f.write('   ext = ".png";\n')
         f.write(' }\n')
-        f.write(' url = url_base + tag + "_" + chan + "_" + type + ext;\n')
         f.write('\n')
         f.write(' if (type.includes("wf")) {\n')
         f.write('   tagpage.document["reduc"].style.width="100%";\n')
+        f.write('   linkurl = url_base + tag + "_" + chan + "_" + type + ext;\n')
+        f.write('   url     = url_base + tag + "_" + chan + "_" + type + "_thumbnail"+ext;\n')
         f.write(' } else {\n')
         f.write('   tagpage.document["reduc"].style.width="auto";\n')
+        f.write('   url     = url_base + tag + "_" + chan + "_" + type + ext;\n')
+        f.write('   linkurl = url_base + tag + "_" + chan + "_" + type + ext;\n')
         f.write(' }\n')
         f.write('\n')
         f.write(' tagpage.document["reduc"].src=url;\n')
-        f.write(' tagpage.document.getElementById("reduc_link").href=url;\n')
+        f.write(' tagpage.document.getElementById("reduc_link").href=linkurl;\n')
         f.write('}\n')
         f.write('\n')
         f.write('function set_type(plot_type){\n')

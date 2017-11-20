@@ -1,4 +1,6 @@
 #!/usr/bin/env python
+import matplotlib as mpl
+mpl.use('Agg')
 import sys
 sys.path+=['.','..','bmxreduce']
 import bmxreduce as br
