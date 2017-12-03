@@ -13,6 +13,10 @@ class datamanager(object):
             else:
                 dataroot='data'  ## make sure data softlinks to some actual position
         self.dataroot=dataroot
+        if os.environ.has_key('BMXREDUCED'):
+            self.reducedroot=os.environ['BMXREDUCED']
+        else:
+            self.reducedroot='reduced'
         return
 
 
@@ -27,7 +31,7 @@ class datamanager(object):
 
         # Get list of directories with raw data, which let's say are directories
         # matching pattern 20??
-        dirs = glob(self.dataroot+'/raw/20[0-9][0-9]')
+        dirs = glob(self.dataroot+'/raw/[0-9][0-9][0-9][0-9]')
 
         # Initialize tag list
         tags = []
@@ -105,13 +109,13 @@ class datamanager(object):
     def getrawfname(self, tag):
         """Get filename from tag"""
         taginfo = self.parsetag(tag)
-        return os.path.join(self.dataroot,'raw','20'+taginfo[0], tag+'.data')
+        return os.path.join(self.dataroot,'raw',taginfo[0]+taginfo[1], tag+'.data')
 
 
     def getreducedfname(self, tag):
         """Get filename from tag"""
         taginfo = self.parsetag(tag)
-        return os.path.join(self.dataroot,'reduced','20'+taginfo[0], tag+'_reduced.data.npz')
+        return os.path.join(self.reducedroot,taginfo[0]+taginfo[1], tag+'_reduced.data.npz')
 
     def loadcsvbydate(self, fname, tag):
         """Get dated csv file closest in time and before tag matching pattern:

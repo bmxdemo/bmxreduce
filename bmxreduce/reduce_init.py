@@ -472,6 +472,10 @@ class reduce(object):
         cPickle because it seems to be much faster and will save time when
         coadding over many files, especially if doing so for many sim
         realizations."""
+        ## first check if you need to make directory
+        d,_=os.path.split(self.redname)
+        if not os.path.exists(d):
+            os.makedirs(d)
         np.savez(self.redfname, cal=self.cal, calAtten=self.calAtten,
                  dat=self.dat, data=self.data, dt=self.dt, ENR=self.ENR,
                  g=self.g, mjd=self.mjd, nhits=self.nhits, tag=self.tag,
