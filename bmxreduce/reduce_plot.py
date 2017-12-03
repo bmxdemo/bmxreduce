@@ -353,7 +353,7 @@ class genhtml():
         self.tags = dm.tags[::-1]
         self.htmldir = 'browser'
 
-    def maybe_create_dirs():
+    def maybe_create_dirs(self):
         if not os.path.exists(self.htmldir):
             print ("Creating directory structure under",self.htmldir)
             os.makedirs(self.htmldir)
@@ -468,7 +468,7 @@ class genhtml():
 
         ntags = len(self.tags)
 
-        maybe_create_dirs()
+        self.maybe_create_dirs()
         for k,tag in enumerate(self.tags):
 
             f = open(os.path.join(self.htmldir,'pages','{:s}.html'.format(tag)),'w')
