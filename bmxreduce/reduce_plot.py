@@ -353,7 +353,7 @@ class genhtml():
         self.tags = dm.tags[::-1]
         self.htmldir = 'browser'
 
-    def maybe_create_dirs()
+    def maybe_create_dirs():
         if not os.path.exists(self.htmldir):
             print ("Creating directory structure under",self.htmldir)
             os.makedirs(self.htmldir)
