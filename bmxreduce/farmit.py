@@ -1,3 +1,4 @@
+from __future__ import print_function, division
 import os
 import string
 import random
@@ -22,6 +23,10 @@ class farmit(object):
         Values of argument dictonary must be arrays, even if only length 1
         """
         self.jobfilepath = os.getenv('HOME')+'/jobfiles/'
+
+        if not os.path.exists(self.jobfilepath):
+            print ("Creating directory ",self.jobfilepath)
+            os.makedirs(self.jobfilepath)
 
         if resubmit:
             #First arg is wildcard to existing job files. Just use these and do

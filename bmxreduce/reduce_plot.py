@@ -1,8 +1,8 @@
+from __future__ import print_function, division
 import matplotlib as mpl
 mpl.use('Agg')
 mpl.rcParams['image.interpolation']='none' # Turn off interpolation for image display
 mpl.rcParams['image.aspect']='auto' # Auto aspect ratio by default
-
 import matplotlib.pyplot as plt
 import numpy as np
 import reduce_init
@@ -353,12 +353,21 @@ class genhtml():
         self.tags = dm.tags[::-1]
         self.htmldir = 'browser'
 
+    def maybe_create_dirs()
+        if not os.path.exists(self.htmldir):
+            print ("Creating directory structure under",self.htmldir)
+            os.makedirs(self.htmldir)
+            os.makedirs(os.path.join(self.htmldir,'pages'))
+            os.makedirs(os.path.join(self.htmldir,'plots'))
+            
+            
     def genindex(self):
         """Generate index page"""
 
         # Last tag
         tag = self.tags[0]
 
+        self.maybe_create_dirs()
         f = open(os.path.join(self.htmldir,'index.html'),'w')
 
         f.write('<html>\n')
@@ -428,6 +437,7 @@ class genhtml():
     def gentagindex(self):
         """Generate tag index page"""
 
+        self.maybe_create_dirs()
         f = open(os.path.join(self.htmldir,'tag_index.html'),'w')
 
         f.write('<html>\n')
@@ -458,6 +468,7 @@ class genhtml():
 
         ntags = len(self.tags)
 
+        maybe_create_dirs()
         for k,tag in enumerate(self.tags):
 
             f = open(os.path.join(self.htmldir,'pages','{:s}.html'.format(tag)),'w')
