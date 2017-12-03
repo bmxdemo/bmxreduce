@@ -37,17 +37,18 @@ class farmit(object):
         self.script = script
         self.args = args
 
-        # Always forward X
-        self.reqs = {'X':1}
-        if reqs is not None:
-            for k,val in enumerate(reqs):
-                self.reqs[val]=reqs[val]
-
         if jobname is None:
             self.jobname = self.datestr()+'_'+self.randstring()
         else:
             self.jobname = jobname
-        
+
+        # Always forward X, jobname
+        self.reqs = {'X':1, 'job_name':self.jobname}
+        if reqs is not None:
+            for k,val in enumerate(reqs):
+                self.reqs[val]=reqs[val]
+
+
         self.prepargs()
 
         self.getjobfilenames()
@@ -162,9 +163,9 @@ class farmit(object):
 
     def submitjob(self, fn):
         """Submit a single job file"""
-        cmd = 'wq sub -b {:s}'.format(fn)
+        cmd = 'nohup /astro/u/astrodat/local/bin/wq.exe sub {:s} 2>&1 >{:s}.wqlog &'.format(fn,fn)
         os.system(cmd)
-    
+
     def waituntildone(self):
         """Wait until the jobs are done"""
         jfn = np.array(self.jobfilenames)
@@ -183,7 +184,7 @@ class farmit(object):
 
     def getnjobs(self):
         """Get number of running jobs"""
-        res = subprocess.check_output('wq ls -u {:s}'.format(os.getlogin()), shell=True)
+        res = subprocess.check_output('/astro/u/astrodat/local/bin/wq.exe ls -u {:s}'.format(os.getlogin()), shell=True)
         ind1 = res.find('Jobs:')
         ind2 = res.find('Running:')
         njobs = int(res[(ind1+5):ind2])
