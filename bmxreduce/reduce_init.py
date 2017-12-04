@@ -473,7 +473,7 @@ class reduce(object):
         coadding over many files, especially if doing so for many sim
         realizations."""
         ## first check if you need to make directory
-        d,_=os.path.split(self.redname)
+        d,_=os.path.split(self.redfname)
         if not os.path.exists(d):
             os.makedirs(d)
         np.savez(self.redfname, cal=self.cal, calAtten=self.calAtten,

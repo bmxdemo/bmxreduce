@@ -13,7 +13,7 @@ import subprocess
 
 class farmit(object):
 
-    def __init__(self, script, args=None, reqs=None, jobname=None, resubmit=False):
+    def __init__(self, script, args=None, reqs=None, names=None, resubmit=False):
         """e.g. 
         f=farmit.farmit('test.py', jobname='test', args={'fmin':[1,2],
         'fmax':[5,6]}, reqs={'N':2})
@@ -36,14 +36,12 @@ class farmit(object):
 
         self.script = script
         self.args = args
+        self.names = names
 
-        if jobname is None:
-            self.jobname = self.datestr()+'_'+self.randstring()
-        else:
-            self.jobname = jobname
+        self.jobname = self.datestr()+'_'+self.randstring()
 
         # Always forward X, jobname
-        self.reqs = {'X':1, 'job_name':self.jobname}
+        self.reqs = {'X':1}
         if reqs is not None:
             for k,val in enumerate(reqs):
                 self.reqs[val]=reqs[val]
@@ -132,6 +130,7 @@ class farmit(object):
             if self.reqs is not None:
                 for j,req in enumerate(self.reqs):
                     f.write(self.reqstring(req))
+            f.write('job_name: {0}\n'.format(self.names[k]))
             f.close()
 
     def reqstring(self, req):
