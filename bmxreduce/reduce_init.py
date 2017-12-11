@@ -401,7 +401,7 @@ class reduce(object):
             v[~np.isfinite(v)] = 0
             norm[~np.isfinite(norm)] = np.inf
             rat = v/norm
-            rat[~np.isfinite(rat)]
+            rat[~np.isfinite(rat)] = 0
 
 
             # SVD decomp
