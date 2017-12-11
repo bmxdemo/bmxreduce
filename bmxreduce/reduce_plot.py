@@ -326,6 +326,8 @@ class genplots():
                 ind = [100, 500, 1000, 2000, 3000]
                 # Plot, omit DC bin
                 for k in ind:
+                    if np.all(p[1:,k] <= 0) or np.all(f[1:] <= 0):
+                        continue
                     plt.loglog(f[1:], p[1:,k],label='{:0.1f}'.format(self.r.f[k]))
                 plt.xlabel('freq (Hz)');
                 plt.ylabel('Power (K^2)')
