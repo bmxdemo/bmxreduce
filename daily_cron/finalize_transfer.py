@@ -1,0 +1,80 @@
+#! /gpfs01/astro/packages/anaconda/default/bin/python
+#
+# Script to walk the "incoming" directory from the BMX rsync and copy
+# the files there to their final destination.
+#
+#  Files will be of the form YYMMDD_HHMM.data
+#
+# Want to go into
+#
+#  /gpfs01/astro/workarea/bmxdata/YYMMDD/YYMMDD_HHMM.data
+#
+
+import argparse
+import os
+import os.path
+
+incomingDir = '/gpfs01/astro/workarea/bmxdata/incoming'
+destDirTop = '/gpfs01/astro/workarea/bmxdata/raw'
+
+parser = argparse.ArgumentParser(description='Process rynced files.')
+parser.add_argument('-d','--dryrun', dest='dryrun', action='store_true',
+                    help='Print out what would be done')
+parser.add_argument('-v','--verbose', dest='verbose', action='store_true',
+                    help='Verbose output')
+
+args = parser.parse_args()
+
+# cd to incomingDir
+try:
+    os.chdir(incomingDir)
+except:
+    if args.verbose:
+        print "cd failed."
+    sys.exit(1)
+
+# The following assumes that the "incoming" dirstory has one level
+for dirpath, dirnames, filenames in os.walk(incomingDir):
+    for name in filenames:
+        fullname=os.path.join(dirpath,name)
+        # split name at the "_"
+        dayDir = name.split('_')[0]
+        try:
+            int(dayDir)
+        except ValueError:
+            print "Do not recognize day ID",dayDir
+            continue
+        monthDir=dayDir[:4]
+        
+        destDir = os.path.join(destDirTop,monthDir)
+        outliersDir = os.path.join(destDirTop,monthDir,'outliers')
+        # Verify destDir exists
+        if  not os.path.exists(destDir):
+            # Create it
+            if args.dryrun:
+                print "Would create directory %s" % (destDir,)
+                print "Would create directory %s" % (outliersDir,)
+            else:
+                if args.verbose:
+                    print "Creating %s" % (destDir)
+                os.mkdir(destDir,0755)
+                os.mkdir(outliersDir,0755)
+        _,ext=os.path.splitext(name)
+        destName = None
+        if ext=='.data':
+            destName = os.path.join(destDir,name)
+        elif ext=='.outliers':
+            destName = os.path.join(outliersDir,name)
+        else:
+            print "Unrecognized extension",ext,'.outliers'
+            continue
+        if args.dryrun:
+            print "Would rename %s to %s" % (fullname, destName,)
+        else:
+            try:
+                if args.verbose:
+                    print "Renaming:",fullname,"->",destName
+                os.rename(fullname,destName)
+            except:
+                print "Cannot rename",fullname,"->",destName
+
