@@ -5,33 +5,41 @@ from datetime import datetime, timedelta
 
 class datamanager(object):
     
-    def __init__(self, tag=None, dataroot=None):
-        # Do nothing
+    def __init__(self, dataroot=None):
+        # Set up dirs
+        self.getdirs(dataroot=dataroot)
+        return
+
+    def getdirs(self, dataroot=None):
+        """Set up directories. Put here instead of __init__ so other classes can
+        inherit this"""
         if dataroot is None:
             if os.environ.has_key('BMXDATA'):
                 dataroot=os.environ['BMXDATA']
             else:
-                dataroot='data'  ## make sure data softlinks to some actual position
+                dataroot='data/raw'  ## make sure data softlinks to some actual position
         self.dataroot=dataroot
         if os.environ.has_key('BMXREDUCED'):
             self.reducedroot=os.environ['BMXREDUCED']
         else:
-            self.reducedroot='reduced'
+            self.reducedroot='data/reduced'
         return
 
-
-    def gettags(self, new=False):
+    
+    def gettags(self, new=False, reduced=False):
         """Get a list of all data tags with spectrometer files and in "good"
         time periods
         
         if new = True, only return data tags that have no reduced data
         associated with them.
 
+        if reduced = True, only return tags with reduced data.
+
         Returns list of tag strings"""
 
         # Get list of directories with raw data, which let's say are directories
         # matching pattern 20??
-        dirs = glob(self.dataroot+'/raw/[0-9][0-9][0-9][0-9]')
+        dirs = glob(self.dataroot+'/[0-9][0-9][0-9][0-9]')
 
         # Initialize tag list
         tags = []
@@ -79,6 +87,11 @@ class datamanager(object):
             ind = np.array([os.path.isfile(self.getreducedfname(k)) for k in tags])
             tags = tags[~ind]
 
+        if reduced:
+            # Only return tags with a reduced file
+            ind = np.array([os.path.isfile(self.getreducedfname(k)) for k in tags])
+            tags = tags[ind]
+            
         self.tags = np.sort(tags)
         self.fnames = [self.getrawfname(k) for k in self.tags]
 
@@ -109,7 +122,7 @@ class datamanager(object):
     def getrawfname(self, tag):
         """Get filename from tag"""
         taginfo = self.parsetag(tag)
-        return os.path.join(self.dataroot,'raw',taginfo[0]+taginfo[1], tag+'.data')
+        return os.path.join(self.dataroot,taginfo[0]+taginfo[1], tag+'.data')
 
 
     def getreducedfname(self, tag):
@@ -135,3 +148,11 @@ class datamanager(object):
 
         return x
 
+
+    def getradec(self):
+        """Get RA/Dec coordinates"""
+        time = Time(self.d.data['mjd'], format='mjd')
+        point = AltAz(alt=90*u.deg, az=0*u.deg, location=telescope_loc, obstime=time)
+        sky = point.transform_to(SkyCoord(0*u.deg, 0*u.deg, frame='icrs'))
+        self.ra = sky.ra
+        self.dec = sky.dec

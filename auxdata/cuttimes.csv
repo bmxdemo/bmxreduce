@@ -1,5 +1,6 @@
-# Start and stop date/time of periods to exclude from data. We are dealing
-# in local eastern time (daylight savings issues TBD). Inclusive of start time,
-# non-inclusive of stop time.
-2000-01-01:00:00:00, 2017-10-20:00:00:00, Before having working system
-2017-01-01:00:00:00, 2017-10-27:20:00:00, Will working on scope
+# Start and stop date/time of periods to exclude from data in UTC.
+# Inclusive of start time, non-inclusive of stop time.
+2000-01-01:00:00:00, 2017-12-01:00:00:00, Before having working system
+2017-12-01:15:00:00, 2017-12-01:20:00:00, Working on scope
+2017-12-12:19:00:00, 2017-12-13:12:00:00, Working on scope
+2017-12-14:18:00:00, 2017-12-15:07:00:00, Working on scope

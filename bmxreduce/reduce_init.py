@@ -13,7 +13,6 @@ telescope_loc = EarthLocation(lat=40.87792*u.deg, lon=-72.85852*u.deg, height=0*
 
 # Initialize empty data manager so we can use its functions
 dm = datamanager()
-dm.gettags()
 
 class reduce(object):
 
@@ -93,14 +92,16 @@ class reduce(object):
         self.savedata()
         print('...took {:0.1f} sec'.format(time.time()-t))
 
+
     def paddata(self):
         """Concatenate data before and after if it exists and is
         consecutive. Not sure if this currently works."""
+        dm.gettags()
         ind = np.where(dm.tags == self.tag)[0][0]
         
         # Store start/stop time of data
         self.mjdspan = [self.d.data['mjd'][[0,-1]]] 
-
+        
         if ind >= 1:
             # Load tag before
             tag0 = dm.tags[ind-1]
