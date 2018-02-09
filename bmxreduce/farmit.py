@@ -15,7 +15,7 @@ class farmit(object):
 
     def __init__(self, script, args=None, reqs=None, names=None, resubmit=False):
         """e.g. 
-        f=farmit.farmit('test.py', jobname='test', args={'fmin':[1,2],
+        f=farmit.farmit('test.py', name='test', args={'fmin':[1,2],
         'fmax':[5,6]}, reqs={'N':2})
         f.writejobfiles()
         f.runjobs()
@@ -36,18 +36,20 @@ class farmit(object):
 
         self.script = script
         self.args = args
-        self.names = names
 
-        self.jobname = self.datestr()+'_'+self.randstring()
-
-        # Always forward X, jobname
+        # Always forward X
         self.reqs = {'X':1}
         if reqs is not None:
             for k,val in enumerate(reqs):
                 self.reqs[val]=reqs[val]
 
-
         self.prepargs()
+
+        # Get jobnames
+        if names is None:
+            self.names = [self.datestr()+'_'+self.randstring() for k in range(self.njobs)]
+        else:
+            self.names = names
 
         self.getjobfilenames()
         self.runpath = os.getcwd()
@@ -76,7 +78,7 @@ class farmit(object):
         """Get job file names, sets self.jobfilename"""
         self.jobfilenames = []
         for k in range(self.njobs):
-            fn = self.jobname + '_' + '{:04d}'.format(k) + '.job'
+            fn = self.names[k] + '_' + '{:04d}'.format(k) + '.job'
             self.jobfilenames.append(self.jobfilepath + fn)
 
 
@@ -101,7 +103,10 @@ class farmit(object):
         cmd0 += self.script
         if self.args is not None:
             for k,val in enumerate(self.args):
-                cmd0 += ' -'
+                if len(val) == 1:
+                    cmd0 += ' -'
+                else:
+                    cmd0 += ' --'
                 cmd0 += val
                 cmd0 += ' '
                 if self.args[val].size > 1:
