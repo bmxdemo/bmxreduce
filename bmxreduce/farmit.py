@@ -78,7 +78,7 @@ class farmit(object):
         """Get job file names, sets self.jobfilename"""
         self.jobfilenames = []
         for k in range(self.njobs):
-            fn = self.names[k] + '_' + '{:04d}'.format(k) + '.job'
+            fn = self.names[k] + '.job'
             self.jobfilenames.append(self.jobfilepath + fn)
 
 
