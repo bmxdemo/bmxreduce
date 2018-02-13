@@ -5,30 +5,17 @@ from datetime import datetime, timedelta
 
 class datamanager(object):
     
-    def __init__(self, dataroot=None):
+    def __init__(self):
         # Set up dirs
-        self.getdirs(dataroot=dataroot)
+        self.getdirs()
         return
 
-    def getdirs(self, dataroot=None):
+    def getdirs(self):
         """Set up directories. Put here instead of __init__ so other classes can
         inherit this"""
-        if dataroot is None:
-            if os.environ.has_key('BMXDATA'):
-                dataroot=os.environ['BMXDATA']
-            else:
-                dataroot='data/raw'  ## make sure data softlinks to some actual position
-        self.dataroot=dataroot
-        if os.environ.has_key('BMXREDUCED'):
-            self.reducedroot=os.environ['BMXREDUCED']
-        else:
-            self.reducedroot='data/reduced'
-
-        if os.environ.has_key('BMXREDUCEDSIM'):
-            self.reducedsimroot=os.environ['BMXREDUCEDSIM']
-        else:
-            self.reducedsimroot='data/reduced_sim'
-
+        self.dataroot = 'data/raw'
+        self.reducedroot='data/reduced'
+        self.reducedsimroot='data/reduced_sim'
         return
 
     
@@ -136,16 +123,16 @@ class datamanager(object):
         taginfo = self.parsetag(tag)
         return os.path.join(self.reducedroot,taginfo[0]+taginfo[1], tag+'_reduced.data.npz')
 
-    def getreducedsimfname(self, tag, serial, fields, pickle_file=False):
+    def getreducedsimfname(self, tag, sn, fields, pickle_file=False):
         """Get reduced sim file name from tag, serial ,fields.
-        serial is a five digit string.
+        sn is a five digit string.
         fields is a list of field.
         """
         taginfo = self.parsetag(tag)
         fields.sort()
         suffix = "pickle" if pickle_file else "npz"
-        return os.path.join(self.reducedsimroot, serial, taginfo[0]+taginfo[1],
-                            '%s_%s_%s_reduced_sim.data.%s' % (tag, serial, '_'.join(fields), suffix))
+        return os.path.join(self.reducedsimroot, sn, taginfo[0]+taginfo[1],
+                            '%s_%s_reduced_sim.data.%s' % (tag, '_'.join(fields), suffix))
 
     def loadcsvbydate(self, fname, tag):
         """Get dated csv file closest in time and before tag matching pattern:

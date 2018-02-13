@@ -24,11 +24,24 @@ class mapmanager(datamanager):
 
         m = {}
 
+        if type == 'galcross':
+            m['rarange'] = np.array([40,180])
+            m['dra'] = 1.0
+            m['frange'] = np.array([1290.0, 1510.0])
+            m['df'] = None
+
         if type == 'SDSSlowz':
             m['rarange'] = np.array([100.0,260.0])
             m['dra'] = 1.0
             m['frange'] = np.array([1290.0, 1510.0])
             m['df'] = None
+
+        if type == 'SDSSlowzlowra':
+            m['rarange'] = np.array([100.0,180])
+            m['dra'] = 1.0
+            m['frange'] = np.array([1290.0, 1510.0])
+            m['df'] = None
+
 
         m['rabe'] = np.arange(m['rarange'][0],m['rarange'][1]+m['dra'],m['dra'])
         m['ra'] = (m['rabe'][0:-1] + m['rabe'][1:])/2.
