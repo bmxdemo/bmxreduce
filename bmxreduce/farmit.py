@@ -110,9 +110,9 @@ class farmit(object):
                 cmd0 += val
                 cmd0 += ' '
                 if self.args[val].size > 1:
-                    cmd0 += str(self.args[val][i])
+                    cmd0 += str(self.args[val][i]).replace(' ','').replace('[','').replace(']','')
                 else:
-                    cmd0 += str(self.args[val][0])
+                    cmd0 += str(self.args[val][0]).replace(' ','').replace('[','').replace(']','')
 
         cmd.append(cmd0)
 

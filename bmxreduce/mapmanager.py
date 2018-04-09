@@ -30,6 +30,12 @@ class mapmanager(datamanager):
             m['frange'] = np.array([1290.0, 1510.0])
             m['df'] = None
 
+        if type == 'SDSS':
+            m['rarange'] = np.array([100.0,260.0])
+            m['dra'] = 1.0
+            m['frange'] = np.array([1100.0, 1510.0])
+            m['df'] = None
+
         if type == 'SDSSlowz':
             m['rarange'] = np.array([100.0,260.0])
             m['dra'] = 1.0
@@ -42,6 +48,18 @@ class mapmanager(datamanager):
             m['frange'] = np.array([1290.0, 1510.0])
             m['df'] = None
 
+        if type == 'SDSSlowzra120':
+            m['rarange'] = np.array([120.0,130])
+            m['dra'] = 1.0
+            m['frange'] = np.array([1290.0, 1510.0])
+            m['df'] = None
+
+        if type == 'GPS':
+            m['rarange'] = np.array([55.0,65.0])
+            m['dra'] = 1.0
+            m['frange'] = np.array([1110.0, 1510.0])
+            m['df'] = None
+
 
         m['rabe'] = np.arange(m['rarange'][0],m['rarange'][1]+m['dra'],m['dra'])
         m['ra'] = (m['rabe'][0:-1] + m['rabe'][1:])/2.
@@ -51,6 +69,9 @@ class mapmanager(datamanager):
         else:
             m['fbe'] = None
             m['f'] = None
+
+
+        m['mapdefn'] = type
 
         self.m = m
 
@@ -99,6 +120,7 @@ class mapmanager(datamanager):
                 xouter.append(xinner)
                 xinner = [tag]
     
+        xouter.append(xinner)
         self.tagnest = xouter
 
     def dt2radec(self, dt):
