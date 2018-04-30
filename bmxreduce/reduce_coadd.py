@@ -176,12 +176,6 @@ class coaddbygroup(datamanager):
             #temp = np.nanmean(v,0)
             temp = np.nanmedian(v,0)
             
-            # Deglitch templates
-            dtdx = temp - np.roll(temp,1)
-            p = np.nanpercentile(dtdx,99)
-            ind = np.abs(dtdx) > p
-            temp[ind] = np.interp(self.f[ind], self.f[~ind], temp[~ind])
-
             for j in range(self.mjd.size):
                 # Set up least sqares regression
                 b = v[j]*1.0
