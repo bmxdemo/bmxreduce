@@ -75,12 +75,20 @@ class mapmanager(datamanager):
 
         self.m = m
 
-    def getmaptags(self):
+    def getmaptags(self, canonical=False):
         """Return a list of tag lists, where the sub-lists are temporally
-        contiguous tags containing data in the map field."""
+        contiguous tags containing data in the map field. If canonical=True,
+        only return tags that fall within the canonical sim date range."""
         # Get tags
         self.gettags(reduced=True)
         
+        # Trim down to canonical
+        if canonical:
+            year,month,day,hr,min = self.parsetags(self.tags)
+            ind = np.where((year==18) & (month==4) & (day>=1) & (day<=2))[0]
+            self.tags = self.tags[ind]
+
+
         # Get start/stop times
         self.start = []
         self.stop = []
@@ -122,6 +130,12 @@ class mapmanager(datamanager):
     
         xouter.append(xinner)
         self.tagnest = xouter
+
+        # Only keep longest tag list if canonical
+        if canonical:
+            taglen = np.array([len(x) for x in self.tagnest])
+            ind = np.where(taglen==np.max(taglen))[0]
+            self.tagnest = self.tagnest[ind]
 
     def dt2radec(self, dt):
         """Datetime to RA/Dec"""
