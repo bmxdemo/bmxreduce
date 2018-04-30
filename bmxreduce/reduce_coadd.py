@@ -25,13 +25,14 @@ class coaddbygroup(datamanager):
         # Set up directories
         self.getdirs()
         self.sn = sn
+        self.fields = fields
 
         # Save tags
         self.tags = tags
         self.m = mapdef
 
         # Do loading
-        self.loadtags(fields)
+        self.loadtags()
         self.getradec()
 
         return
@@ -50,7 +51,7 @@ class coaddbygroup(datamanager):
 
         return
 
-    def loadtags(self, fields):
+    def loadtags(self):
         """Load tags, undo calibration, and concatenate"""
         for k,val in enumerate(self.tags):
 
@@ -58,7 +59,7 @@ class coaddbygroup(datamanager):
             if self.sn is None:
                 fn = self.getreducedfname(val)
             else:
-                fn = self.getreducedsimfname(val, self.sn, fields)
+                fn = self.getreducedsimfname(val, self.sn, self.fields)
             print('loading {0}'.format(fn))
             x0 = np.load(fn)
 
@@ -165,7 +166,7 @@ class coaddbygroup(datamanager):
         # spectrum individually plus a polynomial
         self.mod = np.zeros_like(self.data)
         
-        if ~dofilter:
+        if not dofilter:
             return
 
         for k in range(self.nchan):
@@ -207,7 +208,7 @@ class coaddbygroup(datamanager):
         # Initialize
         self.modcpm = np.zeros_like(self.data)
 
-        if ~docpm:
+        if not docpm:
             return
 
         rr=Ridge(alpha=1, normalize=False, fit_intercept=False)
@@ -230,7 +231,7 @@ class coaddbygroup(datamanager):
             for i,t0 in enumerate(t):
 
                 doindt = np.where(np.abs(t-t0)>dt)[0]
-                print(i)
+                print('{:d} of {:d}'.format(i,len(t)))
 
                 for j,f0 in enumerate(self.f):
 
@@ -249,13 +250,20 @@ class coaddbygroup(datamanager):
                     X = X0.take(doindf,1)
                     y = X0.take(j,1)
 
+                    # Autoregressive
+                    #Xauto = np.zeros((len(doindt),len(doindt)))
+                    #for jj,val in enumerate(doindt):
+                    #    Xauto[][s:e] = v[s:e, j]
+
+                    # Concatenate
+                    #X = np.hstack((X,Xauto))
+
                     # Only fit if data exists
                     ind = np.isfinite(y)
                     y = y[ind]
                     X = X[ind,:]
 
                     # Don't allow NaNs in regressor
-
                     X[~np.isfinite(X)] = 0
 
                     # If there's nothing to fit, skip
@@ -268,6 +276,8 @@ class coaddbygroup(datamanager):
 
                     # Get prediction
                     X = v[i,doindf]
+                    
+
                     X[~np.isfinite(X)] = 0
                     self.modcpm[k,i,j] = X.dot(b)
 
@@ -318,6 +328,23 @@ class coaddbygroup(datamanager):
             self.dec = []
         else:
             self.dec = np.ones_like(self.ra)*self.dec[0]
+
+    def getmapfname(self):
+        """Get map filename"""
+
+        fdir = 'maps'
+
+        if self.sn is None:
+            sn = 'real'
+        else:
+            sn = self.sn
+
+        fld = self.m['mapdefn']
+
+        day = self.tags[0][0:6]
+
+        
+            
 
     def save(self):
         """Save"""
