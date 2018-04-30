@@ -79,7 +79,11 @@ class coaddbygroup(datamanager):
                     setattr(self,fld,x[fld])
                 else:
                     setattr(self,fld,np.hstack((getattr(self,fld),x[fld])))
-        
+            
+            # Simopts
+            if k==0:
+                self.simopts = x['simopts'].item()
+
         self.nchan = self.data.shape[0]
         self.f = x['f']
 
