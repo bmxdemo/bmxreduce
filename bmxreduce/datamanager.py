@@ -111,6 +111,15 @@ class datamanager(object):
 
         return yr, month, day, hr, minute
 
+    def parsetags(self, tags):
+        """Parse tag for a list of tags"""
+        yr = np.array([tag[0:2] for tag in tags]).astype(float)
+        month = np.array([tag[2:4] for tag in tags]).astype(float)
+        day = np.array([tag[4:6] for tag in tags]).astype(float)
+        hr = np.array([tag[7:9] for tag in tags]).astype(float)
+        minute = np.array([tag[9:11] for tag in tags]).astype(float)
+        
+        return yr, month, day, hr, minute
 
     def getrawfname(self, tag):
         """Get filename from tag"""
@@ -123,14 +132,14 @@ class datamanager(object):
         taginfo = self.parsetag(tag)
         return os.path.join(self.reducedroot,taginfo[0]+taginfo[1], tag+'_reduced.data.npz')
 
-    def getreducedsimfname(self, tag, sn, fields, pickle_file=False):
+    def getreducedsimfname(self, tag, sn, fields):
         """Get reduced sim file name from tag, serial ,fields.
-        sn is a five digit string.
+        sn is a string, by convention 5 digits
         fields is a list of field.
         """
         taginfo = self.parsetag(tag)
         fields.sort()
-        suffix = "pickle" if pickle_file else "npz"
+        suffix = "npz"
         return os.path.join(self.reducedsimroot, sn, taginfo[0]+taginfo[1],
                             '%s_%s_reduced_sim.data.%s' % (tag, '_'.join(fields), suffix))
 
