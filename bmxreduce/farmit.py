@@ -13,7 +13,8 @@ import subprocess
 
 class farmit(object):
 
-    def __init__(self, script, args=None, reqs=None, names=None, resubmit=False):
+    def __init__(self, script, args=None, reqs=None, names=None, resubmit=False,
+                 OMP_NUM_THREADS=None):
         """e.g. 
         f=farmit.farmit('test.py', name='test', args={'fmin':[1,2],
         'fmax':[5,6]}, reqs={'N':2})
@@ -22,6 +23,7 @@ class farmit(object):
 
         Values of argument dictonary must be arrays, even if only length 1
         """
+        self.OMP_NUM_THREADS = OMP_NUM_THREADS
         self.jobfilepath = os.getenv('HOME')+'/jobfiles/'
 
         if not os.path.exists(self.jobfilepath):
@@ -82,7 +84,7 @@ class farmit(object):
             self.jobfilenames.append(self.jobfilepath + fn)
 
 
-    def randstring(self, size=4):
+    def randstring(self, size=6):
         """Generate random string of size size"""
         chars = string.ascii_uppercase + string.digits
         return ''.join(random.choice(chars) for _ in range(size))
@@ -97,6 +99,10 @@ class farmit(object):
         """Get command line command to issue. Args can come as an array of
         values, so use the ith value"""
         cmd = []
+        
+        if self.OMP_NUM_THREADS is not None:
+            cmd.append('setenv OMP_NUM_THREADS {:d}'.format(self.OMP_NUM_THREADS))
+
         cmd.append('cd ' + self.runpath)
 
         cmd0 = 'python '
@@ -123,6 +129,7 @@ class farmit(object):
 
     def writejobfiles(self):
         """Write job files to $HOME/jobfiles/"""
+
         for k,val in enumerate(self.jobfilenames):
 
             f = open(val, 'w')
@@ -154,12 +161,18 @@ class farmit(object):
             i = 0
             ntotal = len(self.jobfilenames)
             while True:
-                njobs = self.getnjobs()
+                try:
+                    njobs = self.getnjobs()
+                except:
+                    # If error, don't submit more jobs and try again
+                    print('wq ls failed, trying again...')
+                    njobs = maxjobs
                 nsubmit = maxjobs - njobs
                 for k in range(nsubmit):
                     if i<ntotal:
                         self.submitjob(self.jobfilenames[i])
                         print('submitting job {0} of {1}'.format(i+1, ntotal))
+                        time.sleep(0.2)
                         i += 1
                     else:
                         return
@@ -168,6 +181,7 @@ class farmit(object):
     def submitjob(self, fn):
         """Submit a single job file"""
         cmd = 'nohup /astro/u/astrodat/local/bin/wq.exe sub {:s} 2>&1 >{:s}.wqlog &'.format(fn,fn)
+        #cmd = 'nohup /astro/u/astrodat/local/bin/wq.exe sub {:s} 2>&1 > /dev/null &'.format(fn)
         os.system(cmd)
 
     def waituntildone(self):
