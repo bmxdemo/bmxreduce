@@ -95,7 +95,7 @@ class farmit(object):
         return datetime.now().strftime('%Y%m%d_%H%M%S')
 
 
-    def getcmd(self, i=0):
+    def getcmd(self, i=0, fname='logfile'):
         """Get command line command to issue. Args can come as an array of
         values, so use the ith value"""
         cmd = []
@@ -119,7 +119,7 @@ class farmit(object):
                     cmd0 += str(self.args[val][i]).replace(' ','').replace('[','').replace(']','')
                 else:
                     cmd0 += str(self.args[val][0]).replace(' ','').replace('[','').replace(']','')
-
+        cmd0 += ' >& {:s}.wqlog'.format(fname)
         cmd.append(cmd0)
 
         cmd.append('bash -c "if [ $? == "0" ]; then rm -f {0}; fi"'.format(self.jobfilenames[i]))
@@ -134,7 +134,7 @@ class farmit(object):
 
             f = open(val, 'w')
             f.write('command: |\n')
-            cmd = self.getcmd(k)
+            cmd = self.getcmd(k, fname=val)
 
             for j,cmd0 in enumerate(cmd):
                 f.write('    ' + cmd0+'\n')
@@ -180,7 +180,8 @@ class farmit(object):
 
     def submitjob(self, fn):
         """Submit a single job file"""
-        cmd = 'nohup /astro/u/astrodat/local/bin/wq.exe sub {:s} 2>&1 >{:s}.wqlog &'.format(fn,fn)
+        cmd = '/astro/u/astrodat/local/wq/binary/bin/wq sub -b {:s}'.format(fn)
+        #cmd = 'nohup /astro/u/astrodat/local/bin/wq.exe sub {:s} 2>&1 >{:s}.wqlog &'.format(fn,fn)
         #cmd = 'nohup /astro/u/astrodat/local/bin/wq.exe sub {:s} 2>&1 > /dev/null &'.format(fn)
         os.system(cmd)
 
