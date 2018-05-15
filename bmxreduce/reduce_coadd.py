@@ -56,7 +56,7 @@ class coaddbygroup(datamanager):
         for k,val in enumerate(self.tags):
 
             # Load
-            if self.sn is None:
+            if self.sn == 'real':
                 fn = self.getreducedfname(val)
             else:
                 fn = self.getreducedsimfname(val, self.sn, self.fields)
@@ -81,7 +81,7 @@ class coaddbygroup(datamanager):
                     setattr(self,fld,np.hstack((getattr(self,fld),x[fld])))
             
             # Simopts
-            if k==0:
+            if (k==0) & (self.sn != 'real'):
                 self.simopts = x['simopts'].item()
 
         self.nchan = self.data.shape[0]
@@ -177,8 +177,8 @@ class coaddbygroup(datamanager):
             v = self.data[k]
             # MEDIAN IS BAD!!! NON-LINEAR!!! WARNING!!! Need to improve glitch
             # cutting and RFI excision so we can use nanmean.
-            #temp = np.nanmean(v,0)
-            temp = np.nanmedian(v,0)
+            temp = np.nanmean(v,0)
+            #temp = np.nanmedian(v,0)
             
             for j in range(self.mjd.size):
                 # Set up least sqares regression
@@ -192,12 +192,17 @@ class coaddbygroup(datamanager):
 
                 ff = self.f - self.f.mean()
                 ff = ff/np.max(ff)
-                a = np.vstack((temp,np.ones_like(temp),ff,ff**2,ff**3))
+                #a = np.vstack((temp,np.ones_like(temp),ff,ff**2,ff**3))
+                a = np.vstack((np.ones_like(temp),ff,ff**2,ff**3))
                 ind = np.isfinite(b) & np.isfinite(a).all(0)
                 if all(~ind):
                     continue
                 x = np.linalg.lstsq(a[:,ind].T,b[ind])
                 self.mod[k,j,:] = (a.T).dot(x[0])
+                
+            temp = np.nanmean(self.data[k]-self.mod[k], 0)
+            self.mod[k] += np.repeat(temp[np.newaxis,:], self.mjd.size, 0)
+            
         return
 
     def cpm(self, docpm=True):
@@ -209,7 +214,7 @@ class coaddbygroup(datamanager):
         if not docpm:
             return
 
-        rr=Ridge(alpha=1, normalize=False, fit_intercept=False)
+        rr=Ridge(alpha=1, normalize=True, fit_intercept=True)
         print('ridge regression alpha = {:0.2E}'.format(rr.alpha))
 
         # Time axis in minutes
@@ -223,6 +228,7 @@ class coaddbygroup(datamanager):
         fi = np.arange(self.f.size)
 
         for k in range(self.nchan):
+        #for k in [0]:
 
             v = self.data[k] - self.mod[k]
             
@@ -342,13 +348,11 @@ class coaddbygroup(datamanager):
         day = self.tags[0][0:6]
 
         
-            
-
     def save(self):
         """Save"""
-        fdir = 'maps/bmx/{:s}/'.format(self.m['mapdefn'])
+        fdir = 'maps/bmx/{:s}/{:s}/'.format(self.sn, self.m['mapdefn'])
         if  not os.path.isdir(fdir):
-            os.mkdir(fdir)
+            os.makedirs(fdir)
         fn = '{:s}/{:s}_map.npz'.format(fdir,self.tags[0][0:6])
 
         np.savez(fn, data=self.data, dataroot=self.dataroot, dec=self.dec,
@@ -356,28 +360,6 @@ class coaddbygroup(datamanager):
                  modcpm=self.modcpm, nchan=self.nchan, nhits=self.nhits, ra=self.ra,
                  reducedroot=self.reducedroot,
                  reducedsimroot=self.reducedsimroot, tags=self.tags)
-
-    def load(self, tag):
-        """Load"""
-
-        x = np.load(tag) 
-        self.data = x['data']
-        self.dataroot = x['dataroot']
-        self.dec = x['dec']
-        self.f = x['f']
-        self.g = x['g']
-        self.m = x['m'].item()
-        self.mjd = x['mjd']
-        self.mod = x['mod']
-        self.modcpm = x['modcpm']
-        self.nchan = x['nchan']
-        self.nhits = x['nhits']
-        self.ra = x['ra']
-        self.reducedroot = x['reducedroot']
-        self.reducedsimroot = x['reducedsimroot']
-        self.tags = x['tags']
-
-
 
 class coaddbyday(coaddbygroup):
 
@@ -398,8 +380,22 @@ class coaddbyday(coaddbygroup):
                 self.deglitch()
             self.getw()
             self.docoadd()
-            self.finalize()
 
+        self.finalize()
+
+
+    def load(self, fn):
+        """Load"""
+
+        x = np.load(fn) 
+        y = dict(x)
+        x.close()
+
+        for k,val in enumerate(y.keys):
+            setattr(self,val,y[val])
+
+        if hasattr(self, simopts):
+            self.simopts = self.simopts.item()
 
     def deglitch(self):
         """2nd round deglitching"""
