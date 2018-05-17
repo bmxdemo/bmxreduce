@@ -80,14 +80,13 @@ class mapmanager(datamanager):
         contiguous tags containing data in the map field. If canonical=True,
         only return tags that fall within the canonical sim date range."""
         # Get tags
-        self.gettags(reduced=True)
+        self.gettags(reduced=True, applycuts=True)
         
         # Trim down to canonical
         if canonical:
             year,month,day,hr,min = self.parsetags(self.tags)
             ind = np.where((year==18) & (month==4) & (day>=1) & (day<=2))[0]
             self.tags = self.tags[ind]
-
 
         # Get start/stop times
         self.start = []
