@@ -35,20 +35,33 @@ class coaddbygroup(datamanager):
         self.loadtags()
         self.getradec()
 
+        # Horrible horrible kludge to deal with data with Xpol (vertical) on
+        # channel 2 and Ypol (horizontal) on channel 1. Other times must be cut
+        # in cuttimes.csv.
+        if np.int(self.tags[0][0:6]) <= 180206:
+            self.reversechannels()
+
         return
 
-    def reduce(self, dodeglitch=True, dofilter=True, docpm=True):
+    def reversechannels(self):
+        """Reverse channel order"""
+        self.data = self.data[::-1]
+        self.g = self.g[::-1]
+        self.nhits = self.nhits[::-1]
+
+    def reduce(self, dodeglitch=True, dofilter=True, docpm=True, cpmdt=[30.0, np.inf], cpmdf=10.0, cpmalpha=1e-4):
         """Reduction steps"""
         self.windowdata()
         self.caldata()
-        if self.sn is None:
-            # Don't deglitch simulated noiseless data.
+        if self.sn == 'real':
+            # Only deglitch real data
             self.deglitch(dodeglitch)
         self.filterdata(dofilter)
         self.binra()
-        self.cpm(docpm)
+        self.cpm(docpm, cpmdt=cpmdt, cpmdf=cpmdf, cpmalpha=cpmalpha)
         self.interpmod()
-
+        if self.sn == 'real':
+            self.getcutstats()
         return
 
     def loadtags(self):
@@ -205,54 +218,50 @@ class coaddbygroup(datamanager):
             
         return
 
-    def cpm(self, docpm=True):
-        """CPM model of data"""
+    def cpm(self, docpm=True, cpmdt=[30.0, 180.0], cpmdf=10.0, cpmalpha=1e-4):
+        """CPM model of data.
+        Only use data separated from target datum by more than dt[0] and less
+        than dt[1] (minutes). Don't use any data within df (MHz) of target
+        datum frequency. cpmalpha is alpha param for ridge regression.
+        """
         
         # Initialize
+        self.cpmdt = cpmdt
+        self.cpmdf = cpmdf
+        self.cpmalpha = cpmalpha
         self.modcpm = np.zeros_like(self.data)
 
         if not docpm:
             return
 
-        rr=Ridge(alpha=1, normalize=True, fit_intercept=True)
+        rr=Ridge(alpha=self.cpmalpha, normalize=True, fit_intercept=False)
         print('ridge regression alpha = {:0.2E}'.format(rr.alpha))
 
         # Time axis in minutes
         t = (self.mjd-self.mjd[0])*24*60
 
-        # Don't use any data within dt (minutes) and df (MHz) of target datum
-        # for regression 
-        dt = 30.0
-        df = 5.0
-
-        fi = np.arange(self.f.size)
-
         for k in range(self.nchan):
-        #for k in [0]:
 
             v = self.data[k] - self.mod[k]
             
             for i,t0 in enumerate(t):
+                
+                absdt = np.abs(t-t0)
+                doindt = np.where( (absdt>=self.cpmdt[0]) & (absdt<=self.cpmdt[1]))[0]
 
-                doindt = np.where(np.abs(t-t0)>dt)[0]
                 print('{:d} of {:d}'.format(i,len(t)))
 
                 for j,f0 in enumerate(self.f):
 
                     s = time()
 
-                    doindf = np.where(np.abs(self.f - f0)>df)[0]
+                    doindf = np.where(np.abs(self.f - f0)>self.cpmdf)[0]
 
                     # Construct regressor
-                    #X = v[doindt][:,doindf]
+                    X = v[doindt][:,doindf]
                     
                     # Data to fit
-                    #y = v[doindt][:,j]
-
-                    # Equivalent to above but faster?
-                    X0 = v.take(doindt,0)
-                    X = X0.take(doindf,1)
-                    y = X0.take(j,1)
+                    y = v[doindt][:,j]
 
                     # Autoregressive
                     #Xauto = np.zeros((len(doindt),len(doindt)))
@@ -293,11 +302,13 @@ class coaddbygroup(datamanager):
     def interpmod(self):
         """Interpolate model over 1420 line"""
 
-        ind = (self.f>1420.2) & (self.f<1422.0)
+        ind = (self.f>1419.5) & (self.f<1421.5)
+
         for k in range(self.nchan):
             mod = self.modcpm[k]
             fi = interp2d(self.f[~ind], self.mjd, mod[:,~ind], kind='linear')
-            self.modcpm[k][:,ind] = fi(self.f[ind], self.mjd)
+            y = fi(self.f[ind], self.mjd)
+            self.modcpm[k][:,ind] = y
 
     def binra(self):
         """Bin in RA"""
@@ -337,29 +348,70 @@ class coaddbygroup(datamanager):
         """Get map filename"""
 
         fdir = 'maps'
-
         if self.sn is None:
             sn = 'real'
         else:
             sn = self.sn
-
         fld = self.m['mapdefn']
-
         day = self.tags[0][0:6]
 
-        
+    def getcutstats(self):
+        """Get cut statistics"""
+
+        self.cutstat = []
+
+        for k in range(self.nchan):
+
+            cs = {}
+
+            # 5th, 50th, and 95th percentile of median T data
+            x = np.nanmedian(self.data[k],0)
+            cs['medT05'] = np.nanpercentile(x, 5)
+            cs['medT50'] = np.nanpercentile(x, 50)
+            cs['medT95'] = np.nanpercentile(x, 95)
+
+            # 5th, 50th, and 95th percentile of all T data
+            x = self.data[k]
+            cs['T05'] = np.nanpercentile(x, 5)
+            cs['T50'] = np.nanpercentile(x, 50)
+            cs['T95'] = np.nanpercentile(x, 95)
+            
+            # Max median gain (below 99th percentile)
+            # Min gain in last 100 freq bins
+            x = np.nanmedian(self.g[k],0)
+            cs['maxmedg'] = np.nanmax(x[x<np.nanpercentile(x,99)])
+            cs['minmedg'] = np.nanmin(x[-100:])
+
+            # 5th, 50th, and 95th percentile of all g
+            x = self.g[k]
+            cs['g05'] = np.nanpercentile(x, 5)
+            cs['g50'] = np.nanpercentile(x, 50)
+            cs['g95'] = np.nanpercentile(x, 95)
+            
+            # std of the middle 95 percent of data
+            x = self.data[k]
+            ind = (x>=np.nanpercentile(x,2.5)) & (x<=np.nanpercentile(x,97.5))
+            cs['std'] = np.nanstd(x[ind])
+
+            self.cutstat.append(cs)
+
     def save(self):
         """Save"""
         fdir = 'maps/bmx/{:s}/{:s}/'.format(self.sn, self.m['mapdefn'])
-        if  not os.path.isdir(fdir):
+        if not os.path.isdir(fdir):
             os.makedirs(fdir)
-        fn = '{:s}/{:s}_map.npz'.format(fdir,self.tags[0][0:6])
 
+        fn = '{:s}/{:s}_map.npz'.format(fdir,self.tags[0][0:6])
         np.savez(fn, data=self.data, dataroot=self.dataroot, dec=self.dec,
-                 f=self.f, g=self.g, m=self.m, mjd=self.mjd, mod=self.mod,
+                 f=self.f, m=self.m, mjd=self.mjd, mod=self.mod,
                  modcpm=self.modcpm, nchan=self.nchan, nhits=self.nhits, ra=self.ra,
                  reducedroot=self.reducedroot,
                  reducedsimroot=self.reducedsimroot, tags=self.tags)
+
+        if self.sn == 'real':
+            fn = '{:s}/{:s}_cutstat.npz'.format(fdir,self.tags[0][0:6])
+            np.savez(fn, cutstat=self.cutstat)
+
 
 class coaddbyday(coaddbygroup):
 
