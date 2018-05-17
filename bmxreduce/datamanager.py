@@ -19,7 +19,7 @@ class datamanager(object):
         return
 
     
-    def gettags(self, new=False, reduced=False):
+    def gettags(self, new=False, reduced=False, applycuts=False):
         """Get a list of all data tags with spectrometer files and in "good"
         time periods
         
@@ -43,11 +43,12 @@ class datamanager(object):
             fn = [self.fname2tag(x) for x in fn]
             for j in fn:
                 tags.append(j)
+        tags = np.array(tags)
+        
 
-        # Load times to cut, convert to datetime objects
-        x = np.loadtxt('auxdata/cuttimes.csv', delimiter=',', comments='#', dtype='string')
-        if len(x)>0:
-
+        if applycuts:
+            # Load times to cut, convert to datetime objects
+            x = np.loadtxt('auxdata/cuttimes.csv', delimiter=',', comments='#', dtype='string')
             sc = [datetime.strptime(k.strip(), '%Y-%m-%d:%H:%M:%S') for k in x[:,0] ]
             ec = [datetime.strptime(k.strip(), '%Y-%m-%d:%H:%M:%S') for k in x[:,1] ]
     
