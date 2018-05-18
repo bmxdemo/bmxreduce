@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from astropy.coordinates import EarthLocation, AltAz,SkyCoord
 from astropy.time import Time
 import time
-from datamanager import datamanager
+from mapmanager import mapmanager
 from time import time
 from sklearn.linear_model import Ridge
 import matplotlib.pyplot as plt
@@ -14,7 +14,7 @@ from scipy.interpolate import interp2d
 
 telescope_loc = EarthLocation(lat=40.87792*u.deg, lon=-72.85852*u.deg, height=0*u.m)
 
-class coaddbygroup(datamanager):
+class coaddbygroup(mapmanager):
     
     def __init__(self, tags, mapdef, sn=None, fields=None):
         """Tag list over which to coadd, mapdef from mapmanager. If sn (serial
@@ -29,8 +29,8 @@ class coaddbygroup(datamanager):
 
         # Save tags
         self.tags = tags
-        self.m = mapdef
-
+        self.getmapdefn(mapdef)
+        stop
         # Do loading
         self.loadtags()
         self.getradec()
