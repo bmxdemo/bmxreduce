@@ -25,7 +25,8 @@ f = farmit.farmit('driver/coaddbygroup.py',
                         'cpmalpha':[cpmalpha],
                         'sn':[sn],
                         'mapdef':[mapdef],
-                        'tags':tags})
+                        'tags':tags},
+                  reqs={'N':2})
 
 f.writejobfiles()
 
