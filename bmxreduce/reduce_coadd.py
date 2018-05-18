@@ -480,10 +480,10 @@ class coaddbyday(coaddbygroup):
         y = dict(x)
         x.close()
 
-        for k,val in enumerate(y.keys):
+        for k,val in enumerate(y.keys()):
             setattr(self,val,y[val])
 
-        if hasattr(self, simopts):
+        if hasattr(self, 'simopts'):
             self.simopts = self.simopts.item()
 
     def deglitch(self):
