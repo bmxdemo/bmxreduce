@@ -312,7 +312,6 @@ class coaddbygroup(mapmanager):
 
                     # Get prediction
                     X = v[i,doindf]
-                    
 
                     X[~np.isfinite(X)] = 0
                     self.modcpm[k,i,j] = X.dot(b)
@@ -320,10 +319,9 @@ class coaddbygroup(mapmanager):
                     # Timing
                     e = time()
                     dt.append(e-s)
-
+                    
                 print('mean time per freq. is {:f} s'.format(np.array(dt).mean()))
                 sys.stdout.flush()
-
 
     def interpmod(self):
         """Interpolate model over 1420 line"""
