@@ -11,6 +11,7 @@ from time import time
 from sklearn.linear_model import Ridge
 import matplotlib.pyplot as plt
 from scipy.interpolate import interp2d
+import sys
 
 telescope_loc = EarthLocation(lat=40.87792*u.deg, lon=-72.85852*u.deg, height=0*u.m)
 
@@ -30,7 +31,7 @@ class coaddbygroup(mapmanager):
         # Save tags
         self.tags = tags
         self.getmapdefn(mapdef)
-        stop
+
         # Do loading
         self.loadtags()
         self.getradec()
@@ -49,7 +50,8 @@ class coaddbygroup(mapmanager):
         self.g = self.g[::-1]
         self.nhits = self.nhits[::-1]
 
-    def reduce(self, dodeglitch=True, dofilter=True, docpm=True, cpmdt=[30.0, np.inf], cpmdf=10.0, cpmalpha=1e-4):
+    def reduce(self, dodeglitch=True, dofilter=True, docpm=True, cpmdtmin=30.0,
+               cpmdtmax=np.inf, cpmdf=10.0, cpmalpha=1e-4):
         """Reduction steps"""
         self.windowdata()
         self.caldata()
@@ -58,7 +60,7 @@ class coaddbygroup(mapmanager):
             self.deglitch(dodeglitch)
         self.filterdata(dofilter)
         self.binra()
-        self.cpm(docpm, cpmdt=cpmdt, cpmdf=cpmdf, cpmalpha=cpmalpha)
+        self.cpm(docpm, cpmdtmin=cpmdtmin, cpmdtmax=cpmdtmax, cpmdf=cpmdf, cpmalpha=cpmalpha)
         self.interpmod()
         if self.sn == 'real':
             self.getcutstats()
@@ -74,6 +76,7 @@ class coaddbygroup(mapmanager):
             else:
                 fn = self.getreducedsimfname(val, self.sn, self.fields)
             print('loading {0}'.format(fn))
+            sys.stdout.flush()
             x0 = np.load(fn)
 
             # Convert to dictionary so we can manipulate it
@@ -104,6 +107,10 @@ class coaddbygroup(mapmanager):
 
     def getradec(self):
         """Get ra/dec"""
+
+        print('calculating ra/dec...')
+        sys.stdout.flush()
+
         time = Time(self.mjd, format='mjd')
         point = AltAz(alt=90*u.deg, az=0*u.deg, location=telescope_loc, obstime=time)
         sky = point.transform_to(SkyCoord(0*u.deg, 0*u.deg, frame='icrs'))
@@ -113,6 +120,10 @@ class coaddbygroup(mapmanager):
 
     def windowdata(self):
         """Cut down data to map region"""
+        
+        print('windowing data...')
+        sys.stdout.flush()
+
         indf = (self.f >= self.m['frange'][0]) & (self.f <= self.m['frange'][1])
         indt = (self.ra >= self.m['rarange'][0]) & (self.ra <= self.m['rarange'][1])
         indch = np.arange(self.nchan)
@@ -127,6 +138,8 @@ class coaddbygroup(mapmanager):
 
     def caldata(self):
         """Apply calibration"""
+        print('applying calibration')
+        sys.stdout.flush()
         for k in range(self.nchan):
             self.data[k] = self.data[k] / np.nanmean(self.g[k],0)
 
@@ -135,6 +148,9 @@ class coaddbygroup(mapmanager):
 
         if ~dodeglitch:
             return
+
+        print('deglitching...')
+        sys.stdout.flush()
 
         for k in range(self.nchan):
             v = self.data[k]
@@ -178,13 +194,15 @@ class coaddbygroup(mapmanager):
 
     def filterdata(self, dofilter=True):
         """Filter data"""
-        
+
         # Compute template as median spectrum over time. Fit this to each
         # spectrum individually plus a polynomial
         self.mod = np.zeros_like(self.data)
         
         if not dofilter:
             return
+
+        print('poly + template flitering data...')
 
         for k in range(self.nchan):
             v = self.data[k]
@@ -218,7 +236,7 @@ class coaddbygroup(mapmanager):
             
         return
 
-    def cpm(self, docpm=True, cpmdt=[30.0, 180.0], cpmdf=10.0, cpmalpha=1e-4):
+    def cpm(self, docpm=True, cpmdtmin=30.0, cpmdtmax=np.inf, cpmdf=10.0, cpmalpha=1e-4):
         """CPM model of data.
         Only use data separated from target datum by more than dt[0] and less
         than dt[1] (minutes). Don't use any data within df (MHz) of target
@@ -226,7 +244,8 @@ class coaddbygroup(mapmanager):
         """
         
         # Initialize
-        self.cpmdt = cpmdt
+        self.cpmdtmin = cpmdtmin
+        self.cpmdtmax = cpmdtmax
         self.cpmdf = cpmdf
         self.cpmalpha = cpmalpha
         self.modcpm = np.zeros_like(self.data)
@@ -234,8 +253,10 @@ class coaddbygroup(mapmanager):
         if not docpm:
             return
 
+
         rr=Ridge(alpha=self.cpmalpha, normalize=True, fit_intercept=False)
-        print('ridge regression alpha = {:0.2E}'.format(rr.alpha))
+        print('CPM ridge regression alpha = {:0.2E}'.format(rr.alpha))
+        sys.stdout.flush()
 
         # Time axis in minutes
         t = (self.mjd-self.mjd[0])*24*60
@@ -247,10 +268,12 @@ class coaddbygroup(mapmanager):
             for i,t0 in enumerate(t):
                 
                 absdt = np.abs(t-t0)
-                doindt = np.where( (absdt>=self.cpmdt[0]) & (absdt<=self.cpmdt[1]))[0]
+                doindt = np.where( (absdt>=self.cpmdtmin) & (absdt<=self.cpmdtmax))[0]
 
-                print('{:d} of {:d}'.format(i,len(t)))
+                print('{:d} of {:d} time steps'.format(i,len(t)))
+                sys.stdout.flush()
 
+                dt = [] # timing
                 for j,f0 in enumerate(self.f):
 
                     s = time()
@@ -296,11 +319,17 @@ class coaddbygroup(mapmanager):
 
                     # Timing
                     e = time()
-                    #print('regress {:f}'.format(e-s))
+                    dt.append(e-s)
+
+                print('mean time per freq. is {:f} s'.format(np.array(dt).mean()))
+                sys.stdout.flush()
 
 
     def interpmod(self):
         """Interpolate model over 1420 line"""
+
+        print('interpolating CPM model over 1420 line...')
+        sys.stdout.flush()
 
         ind = (self.f>1419.5) & (self.f<1421.5)
 
@@ -313,6 +342,9 @@ class coaddbygroup(mapmanager):
     def binra(self):
         """Bin in RA"""
         
+        print('binning in RA...')
+        sys.stdout.flush()
+
         databin = np.zeros((self.data.shape[0], len(self.m['ra']), self.data.shape[2]))
         nhitsbin = np.zeros((self.data.shape[0], len(self.m['ra']), self.data.shape[2]))
         modbin = np.zeros((self.data.shape[0], len(self.m['ra']), self.data.shape[2]))
@@ -358,6 +390,9 @@ class coaddbygroup(mapmanager):
     def getcutstats(self):
         """Get cut statistics"""
 
+        print('calculating cut statistics...')
+        sys.stdout.flush()
+
         self.cutstat = []
 
         for k in range(self.nchan):
@@ -397,6 +432,10 @@ class coaddbygroup(mapmanager):
 
     def save(self):
         """Save"""
+        
+        print('saving data')
+        sys.stdout.flush()
+
         fdir = 'maps/bmx/{:s}/{:s}/'.format(self.sn, self.m['mapdefn'])
         if not os.path.isdir(fdir):
             os.makedirs(fdir)
