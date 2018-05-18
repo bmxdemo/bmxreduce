@@ -138,6 +138,8 @@ class datamanager(object):
         sn is a string, by convention 5 digits
         fields is a list of field.
         """
+        if type(fields) is str:
+            fields = fields.split('+')
         taginfo = self.parsetag(tag)
         fields.sort()
         suffix = "npz"
