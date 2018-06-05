@@ -374,17 +374,6 @@ class coaddbygroup(mapmanager):
         else:
             self.dec = np.ones_like(self.ra)*self.dec[0]
 
-    def getmapfname(self):
-        """Get map filename"""
-
-        fdir = 'maps'
-        if self.sn is None:
-            sn = 'real'
-        else:
-            sn = self.sn
-        fld = self.m['mapdefn']
-        day = self.tags[0][0:6]
-
     def getcutstats(self):
         """Get cut statistics"""
 
@@ -434,20 +423,20 @@ class coaddbygroup(mapmanager):
         print('saving data')
         sys.stdout.flush()
 
-        fdir = 'maps/bmx/{:s}/{:s}/'.format(self.sn, self.m['mapdefn'])
-        if not os.path.isdir(fdir):
-            os.makedirs(fdir)
+        fn = self.getmapfname(self.sn, self.tags)
 
-        fn = '{:s}/{:s}_map.npz'.format(fdir,self.tags[0][0:6])
+        # Save cut stats first so successful map save must also have cuts
+        if self.sn == 'real':
+            np.savez(fn.replace('_map','_cutstat'), cutstat=self.cutstat)
+
+        # Save map
         np.savez(fn, data=self.data, dataroot=self.dataroot, dec=self.dec,
                  f=self.f, m=self.m, mjd=self.mjd, mod=self.mod,
                  modcpm=self.modcpm, nchan=self.nchan, nhits=self.nhits, ra=self.ra,
                  reducedroot=self.reducedroot,
-                 reducedsimroot=self.reducedsimroot, tags=self.tags)
-
-        if self.sn == 'real':
-            fn = '{:s}/{:s}_cutstat.npz'.format(fdir,self.tags[0][0:6])
-            np.savez(fn, cutstat=self.cutstat)
+                 reducedsimroot=self.reducedsimroot, tags=self.tags,
+                 cpmdtmin=self.cpmdtmin, cpmdtmax=self.cpmdtmax,
+                 cpmdf=self.cpmdf, cpmalpha=self.cpmalpha)
 
 
 class coaddbyday(coaddbygroup):
