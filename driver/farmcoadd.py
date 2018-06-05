@@ -12,7 +12,7 @@ mapdef = 'SDSSlowz'
 
 m = mapmanager.mapmanager()
 m.getmapdefn(mapdef)
-m.getmaptags()
+m.getmaptags(hasmap=False, sn=sn)
 
 # Turn tags into string
 tags = [str(k) for k in m.tagnest]
@@ -26,7 +26,7 @@ f = farmit.farmit('driver/coaddbygroup.py',
                         'sn':[sn],
                         'mapdef':[mapdef],
                         'tags':tags},
-                  reqs={'N':2})
+                  reqs={'N':12, 'mode':'bycore1'})
 
 f.writejobfiles()
 
