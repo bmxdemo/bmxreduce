@@ -70,15 +70,18 @@ class mapmanager(datamanager):
             m['fbe'] = None
             m['f'] = None
 
-
         m['mapdefn'] = type
 
         self.m = m
 
-    def getmaptags(self, canonical=False):
+    def getmaptags(self, hasmap='all', sn='real', canonical=False):
         """Return a list of tag lists, where the sub-lists are temporally
         contiguous tags containing data in the map field. If canonical=True,
-        only return tags that fall within the canonical sim date range."""
+        only return tags that fall within the canonical sim date range.
+
+        hasmap = 'all', True, False
+        sn is map serial number, relevant only if hasmap != 'all'
+        """
         # Get tags
         self.gettags(reduced=True, applycuts=True)
         
@@ -129,12 +132,26 @@ class mapmanager(datamanager):
     
         xouter.append(xinner)
         self.tagnest = xouter
+        self.tagnest = np.array(self.tagnest)
 
         # Only keep longest tag list if canonical
         if canonical:
             taglen = np.array([len(x) for x in self.tagnest])
             ind = np.where(taglen==np.max(taglen))[0]
             self.tagnest = self.tagnest[ind]
+
+        # Get rid of tags with no map
+        if hasmap != 'all':
+            keepind = []
+            for k,tags in enumerate(self.tagnest):
+                fn = self.getmapfname(sn, tags)
+                keepind.append(os.path.isfile(fn))
+            keepind = np.array(keepind)
+
+            if hasmap:
+                self.tagnest = self.tagnest[keepind]
+            else:
+                self.tagnest = self.tagnest[~keepind]
 
     def dt2radec(self, dt):
         """Datetime to RA/Dec"""
@@ -143,3 +160,10 @@ class mapmanager(datamanager):
         sky = point.transform_to(SkyCoord(0*u.deg, 0*u.deg, frame='icrs'))
         return sky.ra.value, sky.dec.value
 
+    def getmapfname(self, sn, tags):
+        """Get maap filename"""
+        fdir = 'maps/bmx/{:s}/{:s}/'.format(sn, self.m['mapdefn'])
+        if not os.path.isdir(fdir):
+            os.makedirs(fdir)
+        fn = '{:s}/{:s}_map.npz'.format(fdir, tags[0][0:6])
+        return fn
