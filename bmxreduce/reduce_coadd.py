@@ -7,6 +7,7 @@ from astropy.coordinates import EarthLocation, AltAz,SkyCoord
 from astropy.time import Time
 import time
 from mapmanager import mapmanager
+import cutstats
 from time import time
 from sklearn.linear_model import Ridge
 import matplotlib.pyplot as plt
@@ -99,7 +100,8 @@ class coaddbygroup(mapmanager):
             # Simopts
             if (k==0) & (self.sn != 'real'):
                 self.simopts = x['simopts'].item()
-
+            else:
+                self.simopts = None
         self.nchan = self.data.shape[0]
         self.f = x['f']
 
@@ -423,7 +425,7 @@ class coaddbygroup(mapmanager):
         print('saving data')
         sys.stdout.flush()
 
-        fn = self.getmapfname(self.sn, self.tags)
+        fn = self.getmapfname(self.sn, self.tags, self.fields)
 
         # Save cut stats first so successful map save must also have cuts
         if self.sn == 'real':
@@ -436,34 +438,47 @@ class coaddbygroup(mapmanager):
                  reducedroot=self.reducedroot,
                  reducedsimroot=self.reducedsimroot, tags=self.tags,
                  cpmdtmin=self.cpmdtmin, cpmdtmax=self.cpmdtmax,
-                 cpmdf=self.cpmdf, cpmalpha=self.cpmalpha)
+                 cpmdf=self.cpmdf, cpmalpha=self.cpmalpha, simopts=self.simopts)
 
 
 class coaddbyday(coaddbygroup):
 
-    def __init__(self, fn, dodeglitch=True):
+    def __init__(self, fn, clim=None):
         """Initialize with list of filenames:
         e.g. 
         fn = sort(glob('maps/bmx/*.npz'))
         coaddbyday(fn)
         """
         
+        # Determine if this is real data or a sim
+        if fn[0].split('/')[-3] == 'real':
+            # Real data
+            self.issim = False
+        else:
+            # Sim
+            self.issim = True
+
+        # Get cut stat limits
+        if clim is None:
+            clim = cutstats.getclim()
+        self.clim = clim
+
         for k,val in enumerate(fn):
 
             print('coadding {:s}'.format(val))
 
             self.load(val)
             self.data = self.data - self.mod - self.modcpm
-            if dodeglitch:
-                self.deglitch()
+            self.deglitch()
             self.getw()
+            self.applycuts()
             self.docoadd()
 
         self.finalize()
 
 
     def load(self, fn):
-        """Load"""
+        """Load data and cut statistics"""
 
         x = np.load(fn) 
         y = dict(x)
@@ -472,11 +487,23 @@ class coaddbyday(coaddbygroup):
         for k,val in enumerate(y.keys()):
             setattr(self,val,y[val])
 
-        if hasattr(self, 'simopts'):
-            self.simopts = self.simopts.item()
+        if self.issim:
+            # Simulation
+            #self.simopts = self.simopts.item()
+            print('sim')
+        else:
+            # Real data, load cut statistics
+            x = np.load(fn.replace('_map','_cutstat'))
+            self.cutstat = x['cutstat']
+            x.close()
+        
 
     def deglitch(self):
         """2nd round deglitching"""
+
+        if self.issim:
+            print('simulation, not deglitching')
+            return
 
         for k in range(self.nchan):
 
@@ -494,7 +521,7 @@ class coaddbyday(coaddbygroup):
                 ind = np.abs(vv) > 7*sig
                 
                 # Don't cut galactic 21-cm
-                ind[:, (self.f>1420.2) & (self.f<1420.8)] = False
+                ind[:, (self.f>1420.0) & (self.f<1420.8)] = False
 
                 v[ind] = np.nan
 
@@ -515,20 +542,31 @@ class coaddbyday(coaddbygroup):
             self.data[k] = v
             
     def getw(self):
-        """Get weight as simply 1/var where var is computed over frequency at
-        each time"""
-        
+        """Get weight as simply 1/var where var is computed over time at each
+        frequency"""
+
         self.var0 = np.zeros_like(self.data)
         self.w0 = np.zeros_like(self.data)
 
-        nf = self.data.shape[2]
+        nt = self.data.shape[1]
 
         for k in range(self.nchan):
             v = self.data[k]
-            self.var0[k,:,:] = np.repeat(np.nanvar(v, 1)[:,np.newaxis],nf,1)
-            self.w0[k,:,:] = np.repeat(1/np.nanvar(v, 1)[:,np.newaxis],nf,1)
+            self.var0[k,:,:] = np.repeat(np.nanvar(v, 0)[np.newaxis,:],nt,0)
+            self.w0[k,:,:] = np.repeat(1/np.nanvar(v, 0)[np.newaxis,:],nt,0)
             
         self.w0[~np.isfinite(self.data)] = 0
+
+
+    def applycuts(self):
+        """Apply cut statistics if real data"""
+        if hasattr(self,'cutstat'):
+            # Real data
+            for n in range(self.nchan):
+                if not cutstats.getmaskval(self.cutstat[n], self.clim):
+                    # Set weights to zero
+                    print('cutting channel {:d}, day {:s}, setting weights to zero'.format(n,self.tags[0]))
+                    self.w0[n,:,:] = 0
 
 
     def docoadd(self):
