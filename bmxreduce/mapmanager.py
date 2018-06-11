@@ -160,10 +160,13 @@ class mapmanager(datamanager):
         sky = point.transform_to(SkyCoord(0*u.deg, 0*u.deg, frame='icrs'))
         return sky.ra.value, sky.dec.value
 
-    def getmapfname(self, sn, tags):
+    def getmapfname(self, sn, tags, fields=None):
         """Get maap filename"""
         fdir = 'maps/bmx/{:s}/{:s}/'.format(sn, self.m['mapdefn'])
         if not os.path.isdir(fdir):
             os.makedirs(fdir)
-        fn = '{:s}/{:s}_map.npz'.format(fdir, tags[0][0:6])
+        if sn=='real':
+            fn = '{:s}/{:s}_map.npz'.format(fdir, tags[0][0:6])
+        else:
+            fn = '{:s}/{:s}_{:s}_map.npz'.format(fdir, tags[0][0:6], '_'.join(fields.split('+')))
         return fn
