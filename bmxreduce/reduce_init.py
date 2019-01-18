@@ -115,12 +115,18 @@ class reduce(object):
         """Get array of start/stop indices for cal and data. Not fully tested
         for data with cal starting or stopping on first or last indices."""
 
-        ind = self.d.data['lj_diode'].astype('bool')
-        
+        #ind = self.d.data['lj_diode'].astype('bool')
+	#don't want bool, span now 0 to 128 vs 0 to 1 (DZ 01/18/19)
+	ind = self.d.data['lj_diode']        
+
         # Huge kludge because indices don't synch up with data correctly 
         # (CDS 10/2/17)
-        self.calind = np.roll(ind,1)
-        self.calind[0] = self.calind[1]
+	# indices now synch correctly (DZ 01/18/19)
+        #self.calind = np.roll(ind,1)
+        #self.calind[0] = self.calind[1]
+	self.calind = np.zeros(self.d.nSamples)
+	wherecal = np.where(ind==128)[0]
+	self.calind[wherecal] = 1	
 
         dind = self.calind*1.0 - np.roll(self.calind,1)
         chind = np.where(dind != 0)[0]
