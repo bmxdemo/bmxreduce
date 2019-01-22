@@ -167,7 +167,7 @@ class reduce(object):
 
         # Calibrator ENR and any attenuation. Can be actually measured later
         self.ENR = 15 # dB
-        self.calAtten = 0.0 # dB
+        self.calAtten = -4.0 # dB
         
         # Load cal port coupling
         x = dm.loadcsvbydate('S21_calport', self.tag)

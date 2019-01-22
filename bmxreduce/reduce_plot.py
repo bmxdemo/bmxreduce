@@ -109,9 +109,9 @@ class genplots():
             chn = self.r.getchname(chan)
             v = self.r.d.data[chn]
 
-            # Get median spectrum
-            soff = np.nanmedian(v[~self.r.calind,:],0)
-            son = np.nanmedian(v[self.r.calind,:],0)
+            # Get mean spectrum
+            soff = np.nanmean(v[~self.r.calind,:],0)
+            son = np.nanmean(v[self.r.calind,:],0)
             
             # Plot
             fig = plt.figure(figsize=(7,7))
@@ -122,7 +122,7 @@ class genplots():
             plt.xlabel('f (MHz)')
             plt.ylabel('ADU^2')
             plt.grid('on')
-            plt.title('Median raw spectrum, {:s}, {:s}'.format(self.r.tag,chn))
+            plt.title('Mean raw spectrum, {:s}, {:s}'.format(self.r.tag,chn))
             plt.legend()
 
             plt.subplot(2,1,2)
@@ -323,7 +323,8 @@ class genplots():
                 # Plot linear
                 fig = plt.figure(figsize=(7,5))
                 # Plot power spectrum of these frequency bins
-                ind = [100, 500, 1000, 2000, 3000]
+                ind = np.array([100, 500, 1000, 2000, 3000])/4096.*p.shape[1]
+		ind.astype(int)
                 # Plot, omit DC bin
                 for k in ind:
                     if np.all(p[1:,k] <= 0):
