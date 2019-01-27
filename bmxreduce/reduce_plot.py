@@ -61,7 +61,7 @@ class genplots():
             v = self.r.d.data[chn]
 
             # Size of data
-            sz = np.array(v.shape)
+            sz = np.array(v.T.shape)
 
             # Let's make a figure of a standard size but with hugely increased
             # dpi. This will hopefully keep labels looking readable when zoomed
@@ -69,24 +69,24 @@ class genplots():
             padx = 0.25
             pady = 0.25
             figsz = (1+np.array([padx,pady]))*sz/self.dpi
-            fac = 20.0
+            fac = 2.0
             fig = plt.figure(figsize=figsz/fac, dpi=self.dpi*fac)
 
             if cscale=='log':
-                plt.imshow(np.log10(v.T), extent=(self.tmin,self.tmax,self.fmax,self.fmin))
-                titlab = 'log10[ADU^2]'
+                plt.imshow(np.log10(v), extent=(self.fmin,self.fmax,self.tmax,self.tmin))
+		titlab = 'log10[ADU^2]'
             else:
-                plt.imshow(v.T, extent=(self.tmin,self.tmax,self.fmax,self.fmin))
-                plt.clim(0,200)
+                plt.imshow(v, extent=(self.fmin,self.fmax,self.tmax,self.tmin))
+                #plt.clim(0,200)  # commented, was out of range for terminated data DZ (01/26/19)
                 titlab = 'ADU^2'
 
             if 'cal' in fext:
                 titlab.replace('ADU','K')
 
             plt.grid('on')
-            plt.xlabel('t (minutes)');
-            plt.ylabel('freq (MHz)');
-            plt.title('raw {:s} adc ({:s}) -- {:s} - {:s} (UTC)'.format(chn,titlab,self.ts.iso,self.te.iso))
+            plt.ylabel('t (minutes)');
+            plt.xlabel('freq (MHz)');
+            plt.title('raw {:s} adc ({:s}) -- {:s} - {:s} (UTC)'.format(chn,titlab,self.ts.iso[0:-4],self.te.iso[11:-4]))
             plt.colorbar(pad=0)
 
             fname       = self.filebase + '_'+chn+'_wfraw'+fext+'.jpg'
@@ -155,7 +155,7 @@ class genplots():
                 if k==0:
                     v = self.r.data[chan].T
                     titlab = 'T (K)'
-                    cl = (0,200)
+                    cl = None #changed from (0,200) for terminated data DZ (01/26/19)
                     fext = 'data'
                 if k==1:
                     v = self.r.data_mf[chan].T
@@ -198,7 +198,7 @@ class genplots():
                 plt.grid('on')
                 plt.ylabel('t (minutes)');
                 plt.xlabel('freq (MHz)');
-                plt.title('{:s} {:s} -- {:s} - {:s} (UTC)'.format(chn,titlab,self.ts.iso,self.te.iso))
+                plt.title('{:s} {:s} -- {:s} - {:s} (UTC)'.format(chn,titlab,self.ts.iso[0:-4],self.te.iso[11:-4]))
                 plt.colorbar(pad=0)
 
                 fname       = self.filebase + '_'+chn+'_wfcal_'+fext+'.png'
