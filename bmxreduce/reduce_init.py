@@ -77,7 +77,7 @@ class reduce(object):
 
         print('downsampling and filtering data for plots...')
         t = time.time()
-        self.downsample()
+        self.downsample(dt = self.d.deltaT[0])
         self.meanfilter()
         self.svdfilter()
         print('...took {:0.1f} sec'.format(time.time()-t))
@@ -426,52 +426,68 @@ class reduce(object):
 
     def downsample(self, dt=5.0):
         """Downsample data, dt in seconds."""
-        
+
         self.dt = dt
+	
+	# if dt = deltaT, don't downsample only reformat the data
+	if dt==self.d.deltaT[0]:
+	    self.mjd = self.d.data['mjd']
+            self.data = np.full((self.d.nChan, self.d.nSamples, self.f.size), np.nan)
+            self.nhits = np.full((self.d.nChan, self.d.nSamples, self.f.size), 1)
 
-        # MJD array has steps, make it not so
-        mjd = self.d.data['mjd']
-        mjd = np.linspace(mjd[0], mjd[-1], len(mjd))
+            for i in range(self.d.nChan):
+                chn = self.getchname(i)
+            	dat = self.d.data[chn]
+
+             	# Mask cal on data
+            	dat[self.calind,:] = np.nan
+
+            	# Store
+            	self.data[i] = dat
+
+	else:
+            # MJD array has steps, make it not so
+            mjd = self.d.data['mjd']
+            mjd = np.linspace(mjd[0], mjd[-1], len(mjd))
         
-        # Binned mjd edges
-        mjdbin = np.arange(mjd[0], mjd[-1], dt/3600./24.)
-        if mjdbin[-1] != mjd[-1]:
-            np.append(mjdbin, mjd[-1])
+            # Binned mjd edges
+            mjdbin = np.arange(mjd[0], mjd[-1], dt/3600./24.)
+            if mjdbin[-1] != mjd[-1]:
+           	np.append(mjdbin, mjd[-1])
 
-        # Bin data
-        nbin = len(mjdbin)-1
-        self.data  = np.full((self.d.nChan, nbin, self.f.size), np.nan)
-        self.var   = np.full((self.d.nChan, nbin, self.f.size), np.nan)
-        self.nhits = np.full((self.d.nChan, nbin, self.f.size), np.nan)
-        self.mjd   = np.full(nbin, np.nan)
+            # Bin data
+            nbin = len(mjdbin)-1
+            self.data  = np.full((self.d.nChan, nbin, self.f.size), np.nan)
+            self.var   = np.full((self.d.nChan, nbin, self.f.size), np.nan)
+            self.nhits = np.full((self.d.nChan, nbin, self.f.size), np.nan)
+            self.mjd   = np.full(nbin, np.nan)
 
-        for k in range(nbin):
-            ind = np.where( (mjd >= mjdbin[k]) & (mjd < mjdbin[k+1]) )[0]
-            self.mjd[k] = np.nanmean(mjd[ind])
+            for k in range(nbin):
+            	ind = np.where( (mjd >= mjdbin[k]) & (mjd < mjdbin[k+1]) )[0]
+            	self.mjd[k] = np.nanmean(mjd[ind])
 
-            for j in range(self.d.nChan):
-                chn = self.getchname(j)
-                dat = self.d.data[chn][ind, :]
+                for j in range(self.d.nChan):
+                    chn = self.getchname(j)
+                    dat = self.d.data[chn][ind, :]
                 
-                # Mask cal on data
-                dat[self.calind[ind],:] = np.nan
+                    # Mask cal on data
+                    dat[self.calind[ind],:] = np.nan
 
-                # Get stats
-                mu = np.nanmean(dat, 0) # Mean
-                var = np.nanvar(dat, 0) # Variance
-                nhits = np.nansum(~np.isnan(dat), 0) # N hits
+                    # Get stats
+                    mu = np.nanmean(dat, 0) # Mean
+                    var = np.nanvar(dat, 0) # Variance
+                    nhits = np.nansum(~np.isnan(dat), 0) # N hits
                 
-                # Require Nhits >= 50%
-                ndat = dat.shape[0]
-                badind = nhits < 0.5*ndat
-                mu[badind] = np.nan
-                var[badind] = np.inf
+                    # Require Nhits >= 50%
+                    ndat = dat.shape[0]
+                    badind = nhits < 0.5*ndat
+                    mu[badind] = np.nan
+                    var[badind] = np.inf
 
-                # Store
-                self.data[j, k, :]  = mu
-                self.var[j, k, :]   = var
-                self.nhits[j, k, :] = nhits
-
+                    # Store
+                    self.data[j, k, :]  = mu
+                    self.var[j, k, :]   = var
+                    self.nhits[j, k, :] = nhits
 
     def savedata(self):
         """Save reduced data after stripping raw data. Using numpy instead of

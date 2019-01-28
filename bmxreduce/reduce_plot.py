@@ -151,7 +151,7 @@ class genplots():
 
             chn = self.r.getchname(chan)
 
-            for k in range(5):
+            for k in range(4):
                 if k==0:
                     v = self.r.data[chan].T
                     titlab = 'T (K)'
@@ -172,11 +172,12 @@ class genplots():
                     titlab = 'log10(gain) (ADU^2/K)'
                     cl = None
                     fext = 'gain'
-                if k==4:
-                    v = (self.r.nhits[chan]/self.r.var[chan]).T
-                    titlab = 'weight = nhits/variance (1/K^2)'
-                    cl = None
-                    fext = 'weight'
+                # No longer downsampling, so removing weighting for now DZ (28/01/19)
+		#if k==4:
+                    #v = (self.r.nhits[chan]/self.r.var[chan]).T
+                    #titlab = 'weight = nhits/variance (1/K^2)'
+                    #cl = None
+                    #fext = 'weight'
 
                 if k==0:
                     # Size of data
