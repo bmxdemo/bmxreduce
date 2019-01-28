@@ -61,7 +61,7 @@ class genplots():
             v = self.r.d.data[chn]
 
             # Size of data
-            sz = np.array(v.shape)
+            sz = np.array(v.T.shape)
 
             # Let's make a figure of a standard size but with hugely increased
             # dpi. This will hopefully keep labels looking readable when zoomed
@@ -69,24 +69,24 @@ class genplots():
             padx = 0.25
             pady = 0.25
             figsz = (1+np.array([padx,pady]))*sz/self.dpi
-            fac = 20.0
+            fac = 2.0
             fig = plt.figure(figsize=figsz/fac, dpi=self.dpi*fac)
 
             if cscale=='log':
-                plt.imshow(np.log10(v.T), extent=(self.tmin,self.tmax,self.fmax,self.fmin))
-                titlab = 'log10[ADU^2]'
+                plt.imshow(np.log10(v), extent=(self.fmin,self.fmax,self.tmax,self.tmin))
+		titlab = 'log10[ADU^2]'
             else:
-                plt.imshow(v.T, extent=(self.tmin,self.tmax,self.fmax,self.fmin))
-                plt.clim(0,200)
+                plt.imshow(v, extent=(self.fmin,self.fmax,self.tmax,self.tmin))
+                #plt.clim(0,200)  # commented, was out of range for terminated data DZ (01/26/19)
                 titlab = 'ADU^2'
 
             if 'cal' in fext:
                 titlab.replace('ADU','K')
 
             plt.grid('on')
-            plt.xlabel('t (minutes)');
-            plt.ylabel('freq (MHz)');
-            plt.title('raw {:s} adc ({:s}) -- {:s} - {:s} (UTC)'.format(chn,titlab,self.ts.iso,self.te.iso))
+            plt.ylabel('t (minutes)');
+            plt.xlabel('freq (MHz)');
+            plt.title('raw {:s} adc ({:s}) -- {:s} - {:s} (UTC)'.format(chn,titlab,self.ts.iso[0:-4],self.te.iso[11:-4]))
             plt.colorbar(pad=0)
 
             fname       = self.filebase + '_'+chn+'_wfraw'+fext+'.jpg'
@@ -109,9 +109,9 @@ class genplots():
             chn = self.r.getchname(chan)
             v = self.r.d.data[chn]
 
-            # Get median spectrum
-            soff = np.nanmedian(v[~self.r.calind,:],0)
-            son = np.nanmedian(v[self.r.calind,:],0)
+            # Get mean spectrum
+            soff = np.nanmean(v[~self.r.calind,:],0)
+            son = np.nanmean(v[self.r.calind,:],0)
             
             # Plot
             fig = plt.figure(figsize=(7,7))
@@ -122,7 +122,7 @@ class genplots():
             plt.xlabel('f (MHz)')
             plt.ylabel('ADU^2')
             plt.grid('on')
-            plt.title('Median raw spectrum, {:s}, {:s}'.format(self.r.tag,chn))
+            plt.title('Mean raw spectrum, {:s}, {:s}'.format(self.r.tag,chn))
             plt.legend()
 
             plt.subplot(2,1,2)
@@ -151,11 +151,11 @@ class genplots():
 
             chn = self.r.getchname(chan)
 
-            for k in range(5):
+            for k in range(4):
                 if k==0:
                     v = self.r.data[chan].T
                     titlab = 'T (K)'
-                    cl = (0,200)
+                    cl = None #changed from (0,200) for terminated data DZ (01/26/19)
                     fext = 'data'
                 if k==1:
                     v = self.r.data_mf[chan].T
@@ -172,11 +172,12 @@ class genplots():
                     titlab = 'log10(gain) (ADU^2/K)'
                     cl = None
                     fext = 'gain'
-                if k==4:
-                    v = (self.r.nhits[chan]/self.r.var[chan]).T
-                    titlab = 'weight = nhits/variance (1/K^2)'
-                    cl = None
-                    fext = 'weight'
+                # No longer downsampling, so removing weighting for now DZ (28/01/19)
+		#if k==4:
+                    #v = (self.r.nhits[chan]/self.r.var[chan]).T
+                    #titlab = 'weight = nhits/variance (1/K^2)'
+                    #cl = None
+                    #fext = 'weight'
 
                 if k==0:
                     # Size of data
@@ -198,7 +199,7 @@ class genplots():
                 plt.grid('on')
                 plt.ylabel('t (minutes)');
                 plt.xlabel('freq (MHz)');
-                plt.title('{:s} {:s} -- {:s} - {:s} (UTC)'.format(chn,titlab,self.ts.iso,self.te.iso))
+                plt.title('{:s} {:s} -- {:s} - {:s} (UTC)'.format(chn,titlab,self.ts.iso[0:-4],self.te.iso[11:-4]))
                 plt.colorbar(pad=0)
 
                 fname       = self.filebase + '_'+chn+'_wfcal_'+fext+'.png'
@@ -323,7 +324,8 @@ class genplots():
                 # Plot linear
                 fig = plt.figure(figsize=(7,5))
                 # Plot power spectrum of these frequency bins
-                ind = [100, 500, 1000, 2000, 3000]
+                ind = np.array([100, 500, 1000, 2000, 3000])/4096.*p.shape[1]
+		ind.astype(int)
                 # Plot, omit DC bin
                 for k in ind:
                     if np.all(p[1:,k] <= 0):
