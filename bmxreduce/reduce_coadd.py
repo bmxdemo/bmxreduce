@@ -449,6 +449,9 @@ class coaddbyday(coaddbygroup):
         fn = sort(glob('maps/bmx/*.npz'))
         coaddbyday(fn)
         """
+
+        # Save fn
+        self.fn = fn
         
         # Determine if this is real data or a sim
         if fn[0].split('/')[-3] == 'real':
@@ -577,14 +580,20 @@ class coaddbyday(coaddbygroup):
             self.w = np.zeros_like(self.data)
             self.wvar = np.zeros_like(self.data)
             self.wv = np.zeros_like(self.data)
+            self.wmod = np.zeros_like(self.data)
+            self.wmodcpm = np.zeros_like(self.data)
             
 
         self.var0[~np.isfinite(self.var0)] = 0
         self.data[~np.isfinite(self.data)] = 0
+        self.mod[~np.isfinite(self.mod)] = 0
+        self.modcpm[~np.isfinite(self.mod)] = 0
 
         self.w += self.w0
         self.wvar += self.w0 * self.var0
         self.wv += self.w0 * self.data
+        self.wmod += self.w0 * self.mod
+        self.wmodcpm += self.w0 * self.modcpm
 
     def finalize(self):
         """Finish"""
@@ -595,3 +604,5 @@ class coaddbyday(coaddbygroup):
 
         self.T = self.wv / self.w
         self.var = self.wvar / self.w
+        self.mod = self.wmod / self.w
+        self.modcpm = self.wmodcpm / self.w
