@@ -148,7 +148,7 @@ class farmit(object):
     def reqstring(self, req):
         return '{0}: {1}\n'.format(req, self.reqs[req])
 
-    def runjobs(self, maxjobs=500):
+    def runjobs(self, maxjobs=512):
         """Submit jobs"""
 
         if maxjobs is None:
