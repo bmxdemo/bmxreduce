@@ -24,11 +24,42 @@ class mapmanager(datamanager):
 
         m = {}
 
+        if type == 'galcross':
+            m['rarange'] = np.array([40,180])
+            m['dra'] = 1.0
+            m['frange'] = np.array([1290.0, 1510.0])
+            m['df'] = None
+
+        if type == 'SDSS':
+            m['rarange'] = np.array([100.0,260.0])
+            m['dra'] = 1.0
+            m['frange'] = np.array([1100.0, 1510.0])
+            m['df'] = None
+
         if type == 'SDSSlowz':
             m['rarange'] = np.array([100.0,260.0])
             m['dra'] = 1.0
             m['frange'] = np.array([1290.0, 1510.0])
             m['df'] = None
+
+        if type == 'SDSSlowzlowra':
+            m['rarange'] = np.array([100.0,180])
+            m['dra'] = 1.0
+            m['frange'] = np.array([1290.0, 1510.0])
+            m['df'] = None
+
+        if type == 'SDSSlowzra120':
+            m['rarange'] = np.array([120.0,130])
+            m['dra'] = 1.0
+            m['frange'] = np.array([1290.0, 1510.0])
+            m['df'] = None
+
+        if type == 'GPS':
+            m['rarange'] = np.array([55.0,65.0])
+            m['dra'] = 1.0
+            m['frange'] = np.array([1110.0, 1510.0])
+            m['df'] = None
+
 
         m['rabe'] = np.arange(m['rarange'][0],m['rarange'][1]+m['dra'],m['dra'])
         m['ra'] = (m['rabe'][0:-1] + m['rabe'][1:])/2.
@@ -39,14 +70,27 @@ class mapmanager(datamanager):
             m['fbe'] = None
             m['f'] = None
 
+        m['mapdefn'] = type
+
         self.m = m
 
-    def getmaptags(self):
+    def getmaptags(self, hasmap='all', sn='real', canonical=False):
         """Return a list of tag lists, where the sub-lists are temporally
-        contiguous tags containing data in the map field."""
+        contiguous tags containing data in the map field. If canonical=True,
+        only return tags that fall within the canonical sim date range.
+
+        hasmap = 'all', True, False
+        sn is map serial number, relevant only if hasmap != 'all'
+        """
         # Get tags
-        self.gettags(reduced=True)
+        self.gettags(reduced=True, applycuts=True)
         
+        # Trim down to canonical
+        if canonical:
+            year,month,day,hr,min = self.parsetags(self.tags)
+            ind = np.where((year==18) & (month==4) & (day>=1) & (day<=2))[0]
+            self.tags = self.tags[ind]
+
         # Get start/stop times
         self.start = []
         self.stop = []
@@ -86,7 +130,28 @@ class mapmanager(datamanager):
                 xouter.append(xinner)
                 xinner = [tag]
     
+        xouter.append(xinner)
         self.tagnest = xouter
+        self.tagnest = np.array(self.tagnest)
+
+        # Only keep longest tag list if canonical
+        if canonical:
+            taglen = np.array([len(x) for x in self.tagnest])
+            ind = np.where(taglen==np.max(taglen))[0]
+            self.tagnest = self.tagnest[ind]
+
+        # Get rid of tags with no map
+        if hasmap != 'all':
+            keepind = []
+            for k,tags in enumerate(self.tagnest):
+                fn = self.getmapfname(sn, tags)
+                keepind.append(os.path.isfile(fn))
+            keepind = np.array(keepind)
+
+            if hasmap:
+                self.tagnest = self.tagnest[keepind]
+            else:
+                self.tagnest = self.tagnest[~keepind]
 
     def dt2radec(self, dt):
         """Datetime to RA/Dec"""
@@ -95,3 +160,13 @@ class mapmanager(datamanager):
         sky = point.transform_to(SkyCoord(0*u.deg, 0*u.deg, frame='icrs'))
         return sky.ra.value, sky.dec.value
 
+    def getmapfname(self, sn, tags, fields=None):
+        """Get maap filename"""
+        fdir = 'maps/bmx/{:s}/{:s}/'.format(sn, self.m['mapdefn'])
+        if not os.path.isdir(fdir):
+            os.makedirs(fdir)
+        if sn=='real':
+            fn = '{:s}/{:s}_map.npz'.format(fdir, tags[0][0:6])
+        else:
+            fn = '{:s}/{:s}_{:s}_map.npz'.format(fdir, tags[0][0:6], '_'.join(fields.split('+')))
+        return fn

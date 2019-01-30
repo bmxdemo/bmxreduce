@@ -5,28 +5,21 @@ from datetime import datetime, timedelta
 
 class datamanager(object):
     
-    def __init__(self, dataroot=None):
+    def __init__(self):
         # Set up dirs
-        self.getdirs(dataroot=dataroot)
+        self.getdirs()
         return
 
-    def getdirs(self, dataroot=None):
+    def getdirs(self):
         """Set up directories. Put here instead of __init__ so other classes can
         inherit this"""
-        if dataroot is None:
-            if os.environ.has_key('BMXDATA'):
-                dataroot=os.environ['BMXDATA']
-            else:
-                dataroot='data/raw'  ## make sure data softlinks to some actual position
-        self.dataroot=dataroot
-        if os.environ.has_key('BMXREDUCED'):
-            self.reducedroot=os.environ['BMXREDUCED']
-        else:
-            self.reducedroot='data/reduced'
+        self.dataroot = 'data/raw'
+        self.reducedroot='data/reduced'
+        self.reducedsimroot='data/reduced_sim'
         return
 
     
-    def gettags(self, new=False, reduced=False):
+    def gettags(self, new=False, reduced=False, applycuts=False):
         """Get a list of all data tags with spectrometer files and in "good"
         time periods
         
@@ -50,11 +43,12 @@ class datamanager(object):
             fn = [self.fname2tag(x) for x in fn]
             for j in fn:
                 tags.append(j)
+        tags = np.array(tags)
+        
 
-        # Load times to cut, convert to datetime objects
-        x = np.loadtxt('auxdata/cuttimes.csv', delimiter=',', comments='#', dtype='string')
-        if len(x)>0:
-
+        if applycuts:
+            # Load times to cut, convert to datetime objects
+            x = np.loadtxt('auxdata/cuttimes.csv', delimiter=',', comments='#', dtype='string')
             sc = [datetime.strptime(k.strip(), '%Y-%m-%d:%H:%M:%S') for k in x[:,0] ]
             ec = [datetime.strptime(k.strip(), '%Y-%m-%d:%H:%M:%S') for k in x[:,1] ]
     
@@ -118,6 +112,15 @@ class datamanager(object):
 
         return yr, month, day, hr, minute
 
+    def parsetags(self, tags):
+        """Parse tag for a list of tags"""
+        yr = np.array([tag[0:2] for tag in tags]).astype(float)
+        month = np.array([tag[2:4] for tag in tags]).astype(float)
+        day = np.array([tag[4:6] for tag in tags]).astype(float)
+        hr = np.array([tag[7:9] for tag in tags]).astype(float)
+        minute = np.array([tag[9:11] for tag in tags]).astype(float)
+        
+        return yr, month, day, hr, minute
 
     def getrawfname(self, tag):
         """Get filename from tag"""
@@ -129,6 +132,19 @@ class datamanager(object):
         """Get filename from tag"""
         taginfo = self.parsetag(tag)
         return os.path.join(self.reducedroot,taginfo[0]+taginfo[1], tag+'_reduced.data.npz')
+
+    def getreducedsimfname(self, tag, sn, fields):
+        """Get reduced sim file name from tag, serial ,fields.
+        sn is a string, by convention 5 digits
+        fields is a list of field.
+        """
+        if type(fields) is str:
+            fields = fields.split('+')
+        taginfo = self.parsetag(tag)
+        fields.sort()
+        suffix = "npz"
+        return os.path.join(self.reducedsimroot, sn, taginfo[0]+taginfo[1],
+                            '%s_%s_reduced_sim.data.%s' % (tag, '_'.join(fields), suffix))
 
     def loadcsvbydate(self, fname, tag):
         """Get dated csv file closest in time and before tag matching pattern:

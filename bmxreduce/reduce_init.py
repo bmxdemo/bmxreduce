@@ -77,7 +77,7 @@ class reduce(object):
 
         print('downsampling and filtering data for plots...')
         t = time.time()
-        self.downsample()
+        self.downsample(dt = self.d.deltaT[0])
         self.meanfilter()
         self.svdfilter()
         print('...took {:0.1f} sec'.format(time.time()-t))
@@ -115,12 +115,18 @@ class reduce(object):
         """Get array of start/stop indices for cal and data. Not fully tested
         for data with cal starting or stopping on first or last indices."""
 
-        ind = self.d.data['lj_diode'].astype('bool')
-        
+        #ind = self.d.data['lj_diode'].astype('bool')
+	#don't want bool, span now 0 to 128 vs 0 to 1 (DZ 01/18/19)
+	ind = self.d.data['lj_diode']        
+
         # Huge kludge because indices don't synch up with data correctly 
         # (CDS 10/2/17)
-        self.calind = np.roll(ind,1)
-        self.calind[0] = self.calind[1]
+	# indices now synch correctly (DZ 01/18/19)
+        #self.calind = np.roll(ind,1)
+        #self.calind[0] = self.calind[1]
+	self.calind = np.zeros(self.d.nSamples).astype('bool')
+	wherecal = np.where(ind==128)[0]
+	self.calind[wherecal] = True	
 
         dind = self.calind*1.0 - np.roll(self.calind,1)
         chind = np.where(dind != 0)[0]
@@ -161,7 +167,7 @@ class reduce(object):
 
         # Calibrator ENR and any attenuation. Can be actually measured later
         self.ENR = 15 # dB
-        self.calAtten = 0.0 # dB
+        self.calAtten = -4.0 # dB
         
         # Load cal port coupling
         x = dm.loadcsvbydate('S21_calport', self.tag)
@@ -269,6 +275,7 @@ class reduce(object):
 
             ###############
             # Mask Outliers
+	    # Want to keep outliers for now (DZ 19/01/22)
             # Loop over frequencies
             for k in range(x.shape[1]):
 
@@ -276,51 +283,51 @@ class reduce(object):
                 maskind = np.zeros(x.shape[0]).astype('bool')
 
                 # Do the masking step this many times
-                nmask = 2
-                for nm in range(nmask):
+                #nmask = 2
+                #for nm in range(nmask):
                 
                     # Loop over cal on and cal off separately
-                    for l in range(2):
+                    #for l in range(2):
 
-                        if l==0:
-                            ci = ~self.calind # Cal off data
-                        else:
-                            ci = self.calind # Cal on data
+                        #if l==0:
+                            #ci = ~self.calind # Cal off data
+                        #else:
+                            #ci = self.calind # Cal on data
 
                         # Mask various outliers in v, dv/dt, etc.
-                        for m in range(2):
+                        #for m in range(2):
 
-                            if m==0:
+                            #if m==0:
                                 # Get data itself
-                                v = x[ci,k]
-                            else:
+                                #v = x[ci,k]
+                            #else:
                                 # Get 1st deriv of data. There are gaps in the data for cal
                                 # on/off but they're short so that's okay.
-                                v = x[ci,k] - np.roll(x[ci,k], 1, axis=0)
-                                v[0] = 0
+                                #v = x[ci,k] - np.roll(x[ci,k], 1, axis=0)
+                                #v[0] = 0
 
                             # Times
-                            t = t0[ci]
+                            #t = t0[ci]
 
                             # Find where data is not already masked
-                            gi = np.where(np.isfinite(v))
-                            gt = t[gi]; gv = v[gi]
-                            if len(gv) < 0.2*len(v):
+                            #gi = np.where(np.isfinite(v))
+                            #gt = t[gi]; gv = v[gi]
+                            #if len(gv) < 0.2*len(v):
                                 # If more than 80% of the data is already NaN,
                                 # mask the whole thing
-                                maskind[ci] = True
-                            else:
+                                #maskind[ci] = True
+                            #else:
                                 # Poly subtract data
-                                p = np.polyfit(gt, gv, 4)
-                                v = v - np.polyval(p, t)
+                                #p = np.polyfit(gt, gv, 4)
+                                #v = v - np.polyval(p, t)
 
                                 # Get std of middle 80th percentile of values
-                                p = np.nanpercentile(v,[10,90])
-                                ind = (v>p[0]) & (v<p[1])
-                                std0 = np.nanstd(v[ind])
+                                #p = np.nanpercentile(v,[10,90])
+                                #ind = (v>p[0]) & (v<p[1])
+                                #std0 = np.nanstd(v[ind])
 
                                 # Mask 5 sigma outliers
-                                maskind[ci] = (maskind[ci]) | (np.abs(v) > 5*std0)
+                                #maskind[ci] = (maskind[ci]) | (np.abs(v) > 5*std0)
 
 
                 # Expand masked data by some number of samples on either side
@@ -329,9 +336,7 @@ class reduce(object):
                 #maskind[maskind != 0] = 1
                 #maskind = maskind.astype('bool')
 
-                # Mask first and last of cal ind
-                maskind[self.ind['sc']] = True
-                maskind[self.ind['ec']] = True
+		# Mask first and last of data ind, where noise diode turns on/off
                 maskind[self.ind['sd']] = True
                 maskind[self.ind['ed']] = True
 
@@ -421,52 +426,68 @@ class reduce(object):
 
     def downsample(self, dt=5.0):
         """Downsample data, dt in seconds."""
-        
+
         self.dt = dt
+	
+	# if dt = deltaT, don't downsample only reformat the data
+	if dt==self.d.deltaT[0]:
+	    self.mjd = self.d.data['mjd']
+            self.data = np.full((self.d.nChan, self.d.nSamples, self.f.size), np.nan)
+            self.nhits = np.full((self.d.nChan, self.d.nSamples, self.f.size), 1)
 
-        # MJD array has steps, make it not so
-        mjd = self.d.data['mjd']
-        mjd = np.linspace(mjd[0], mjd[-1], len(mjd))
+            for i in range(self.d.nChan):
+                chn = self.getchname(i)
+            	dat = self.d.data[chn]
+
+             	# Mask cal on data
+            	dat[self.calind,:] = np.nan
+
+            	# Store
+            	self.data[i] = dat
+
+	else:
+            # MJD array has steps, make it not so
+            mjd = self.d.data['mjd']
+            mjd = np.linspace(mjd[0], mjd[-1], len(mjd))
         
-        # Binned mjd edges
-        mjdbin = np.arange(mjd[0], mjd[-1], dt/3600./24.)
-        if mjdbin[-1] != mjd[-1]:
-            np.append(mjdbin, mjd[-1])
+            # Binned mjd edges
+            mjdbin = np.arange(mjd[0], mjd[-1], dt/3600./24.)
+            if mjdbin[-1] != mjd[-1]:
+           	np.append(mjdbin, mjd[-1])
 
-        # Bin data
-        nbin = len(mjdbin)-1
-        self.data  = np.full((self.d.nChan, nbin, self.f.size), np.nan)
-        self.var   = np.full((self.d.nChan, nbin, self.f.size), np.nan)
-        self.nhits = np.full((self.d.nChan, nbin, self.f.size), np.nan)
-        self.mjd   = np.full(nbin, np.nan)
+            # Bin data
+            nbin = len(mjdbin)-1
+            self.data  = np.full((self.d.nChan, nbin, self.f.size), np.nan)
+            self.var   = np.full((self.d.nChan, nbin, self.f.size), np.nan)
+            self.nhits = np.full((self.d.nChan, nbin, self.f.size), np.nan)
+            self.mjd   = np.full(nbin, np.nan)
 
-        for k in range(nbin):
-            ind = np.where( (mjd >= mjdbin[k]) & (mjd < mjdbin[k+1]) )[0]
-            self.mjd[k] = np.nanmean(mjd[ind])
+            for k in range(nbin):
+            	ind = np.where( (mjd >= mjdbin[k]) & (mjd < mjdbin[k+1]) )[0]
+            	self.mjd[k] = np.nanmean(mjd[ind])
 
-            for j in range(self.d.nChan):
-                chn = self.getchname(j)
-                dat = self.d.data[chn][ind, :]
+                for j in range(self.d.nChan):
+                    chn = self.getchname(j)
+                    dat = self.d.data[chn][ind, :]
                 
-                # Mask cal on data
-                dat[self.calind[ind],:] = np.nan
+                    # Mask cal on data
+                    dat[self.calind[ind],:] = np.nan
 
-                # Get stats
-                mu = np.nanmean(dat, 0) # Mean
-                var = np.nanvar(dat, 0) # Variance
-                nhits = np.nansum(~np.isnan(dat), 0) # N hits
+                    # Get stats
+                    mu = np.nanmean(dat, 0) # Mean
+                    var = np.nanvar(dat, 0) # Variance
+                    nhits = np.nansum(~np.isnan(dat), 0) # N hits
                 
-                # Require Nhits >= 50%
-                ndat = dat.shape[0]
-                badind = nhits < 0.5*ndat
-                mu[badind] = np.nan
-                var[badind] = np.inf
+                    # Require Nhits >= 50%
+                    ndat = dat.shape[0]
+                    badind = nhits < 0.5*ndat
+                    mu[badind] = np.nan
+                    var[badind] = np.inf
 
-                # Store
-                self.data[j, k, :]  = mu
-                self.var[j, k, :]   = var
-                self.nhits[j, k, :] = nhits
-
+                    # Store
+                    self.data[j, k, :]  = mu
+                    self.var[j, k, :]   = var
+                    self.nhits[j, k, :] = nhits
 
     def savedata(self):
         """Save reduced data after stripping raw data. Using numpy instead of
