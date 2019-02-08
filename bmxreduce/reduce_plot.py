@@ -17,6 +17,7 @@ plt.ioff()
 def nanhist(x, **kwargs):
     plt.hist(x[np.isfinite(x)],**kwargs)
 
+
 class genplots():
     
     def __init__(self, r, masterext=''):
@@ -42,7 +43,12 @@ class genplots():
 
         # File naming
         self.filebase = self.r.tag
-        self.plotdir = 'browser/plots'
+        self.plotdir = 'browser/plots/{:s}'.format(self.r.tag)
+        try:
+            os.makedirs(self.plotdir)
+            print('made directory '+ self.plotdir)
+        except:
+            print('directory ' + self.plotdir + 'already exists, skipping mkdir')
 
         # Close all open plots
         plt.close('all')
@@ -417,12 +423,12 @@ class genhtml():
         f.write('\n')
         f.write(' if (type.includes("wf")) {\n')
         f.write('   tagpage.document["reduc"].style.width="auto";\n')
-        f.write('   linkurl = url_base + tag + "_" + chan + "_" + type + rfiext + ext;\n')
-        f.write('   url     = url_base + tag + "_" + chan + "_" + type + rfiext + "_thumbnail"+ext;\n')
+        f.write('   linkurl = url_base + tag + "/" + tag + "_" + chan + "_" + type + rfiext + ext;\n')
+        f.write('   url     = url_base + tag + "/" + tag + "_" + chan + "_" + type + rfiext + "_thumbnail"+ext;\n')
         f.write(' } else {\n')
         f.write('   tagpage.document["reduc"].style.width="auto";\n')
-        f.write('   url     = url_base + tag + "_" + chan + "_" + type + rfiext + ext;\n')
-        f.write('   linkurl = url_base + tag + "_" + chan + "_" + type + rfiext + ext;\n')
+        f.write('   url     = url_base + tag + "/" + tag + "_" + chan + "_" + type + rfiext + ext;\n')
+        f.write('   linkurl = url_base + tag + "/" + tag + "_" + chan + "_" + type + rfiext + ext;\n')
         f.write(' }\n')
         f.write('\n')
         f.write(' tagpage.document["reduc"].src=url;\n')
@@ -647,8 +653,8 @@ class genhtml():
                     f.write('</table>')
                 f.write('</table>')
             f.write('\n')
-            f.write('<a href="../plots/{:s}_chan1_0_medcal_data.png" id="reduc_link">\n'.format(tag))
-            f.write('<img src="../plots/{:s}_chan1_0_medcal_data.png" width=""  name="reduc">\n'.format(tag))
+            f.write('<a href="../plots/{:s}/{:s}_chan1_0_medcal_data.png" id="reduc_link">\n'.format(tag,tag))
+            f.write('<img src="../plots/{:s}/{:s}_chan1_0_medcal_data.png" width=""  name="reduc">\n'.format(tag,tag))
             f.write('</a>\n')
             f.write('</center>\n')
             f.write('\n')
