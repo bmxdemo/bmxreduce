@@ -47,26 +47,32 @@ for dirpath, dirnames, filenames in os.walk(incomingDir):
         monthDir=dayDir[:4]
         
         destDir = os.path.join(destDirTop,monthDir)
-        outliersDir = os.path.join(destDirTop,monthDir,'outliers')
+        rfiDir = os.path.join(destDirTop,monthDir,'rfi')
+        ringDir = os.path.join(destDirTop,monthDir,'ring')
+
         # Verify destDir exists
         if  not os.path.exists(destDir):
             # Create it
             if args.dryrun:
                 print "Would create directory %s" % (destDir,)
-                print "Would create directory %s" % (outliersDir,)
+                print "Would create directory %s" % (rfiDir,)
+                print "Would create directory %s" % (ringDir,)
             else:
                 if args.verbose:
                     print "Creating %s" % (destDir)
                 os.mkdir(destDir,0755)
-                os.mkdir(outliersDir,0755)
+                os.mkdir(rfiDir,0755)
+                os.mkdir(ringDir,0755)
         _,ext=os.path.splitext(name)
         destName = None
         if ext=='.data':
             destName = os.path.join(destDir,name)
-        elif ext=='.outliers':
-            destName = os.path.join(outliersDir,name)
+        elif ext=='.rfi':
+            destName = os.path.join(rfiDir,name)
+        elif ext=='.ring':
+            destName = os.path.join(ringDir,name)
         else:
-            print "Unrecognized extension",ext,'.outliers'
+            print "Unrecognized extension",ext
             continue
         if args.dryrun:
             print "Would rename %s to %s" % (fullname, destName,)
