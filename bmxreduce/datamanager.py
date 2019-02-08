@@ -19,7 +19,7 @@ class datamanager(object):
         return
 
     
-    def gettags(self, new=False, reduced=False, applycuts=False):
+    def gettags(self, new=False, reduced=False, applycuts=False, hasD2=True):
         """Get a list of all data tags with spectrometer files and in "good"
         time periods
         
@@ -28,7 +28,10 @@ class datamanager(object):
 
         if reduced = True, only return tags with reduced data.
 
-        Returns list of tag strings"""
+        Returns list of tag strings
+
+        Only return tags that have a D2 associated with them (unless before 2019)
+        """
 
         # Get list of directories with raw data, which let's say are directories
         # matching pattern 20??
@@ -44,7 +47,7 @@ class datamanager(object):
             for j in fn:
                 tags.append(j)
         tags = np.array(tags)
-        
+        tags = np.sort(np.unique(tags))
 
         if applycuts:
             # Load times to cut, convert to datetime objects
@@ -85,6 +88,19 @@ class datamanager(object):
             # Only return tags with a reduced file
             ind = np.array([os.path.isfile(self.getreducedfname(k)) for k in tags])
             tags = tags[ind]
+
+        if hasD2:
+            yr, _, _, _, _ = self.parsetags(tags)
+            ind = np.where(yr >= 19)[0]
+            keepind = np.ones(len(tags)).astype('bool')
+            for k in ind:
+                fnD1 = self.getrawfname(tags[k])
+                fnD2 = fnD1.replace('D1','D2')
+                if os.path.isfile(fnD1) & os.path.isfile(fnD2):
+                    continue
+                else:
+                    keepind[k] = 0
+            tags = tags[keepind]
             
         self.tags = np.sort(tags)
         self.fnames = [self.getrawfname(k) for k in self.tags]
@@ -125,7 +141,13 @@ class datamanager(object):
     def getrawfname(self, tag):
         """Get filename from tag"""
         taginfo = self.parsetag(tag)
-        return os.path.join(self.dataroot,taginfo[0]+taginfo[1], tag+'.data')
+        
+        if np.int(taginfo[0]) >= 19:
+            ext = '_D1'
+        else:
+            ext = ''
+
+        return os.path.join(self.dataroot,taginfo[0]+taginfo[1], tag + ext+'.data')
 
 
     def getreducedfname(self, tag):

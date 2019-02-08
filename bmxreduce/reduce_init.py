@@ -7,6 +7,7 @@ import cPickle as cP
 import astropy.units as u
 from astropy.coordinates import EarthLocation, AltAz,SkyCoord
 from astropy.time import Time
+from copy import deepcopy as dc
 import time
 
 telescope_loc = EarthLocation(lat=40.87792*u.deg, lon=-72.85852*u.deg, height=0*u.m)
@@ -28,8 +29,15 @@ class reduce(object):
 
         print('loading data...')
         t = time.time()
-        self.d = bmxdata.BMXFile(self.rawfname)
+        self.d = bmxdata.BMXFile(self.rawfname, loadD2=True)
         print('...took {:0.1f} sec'.format(time.time()-t))
+
+        # Channel names to plot
+        self.chnames = np.array(self.d.names)[np.array(['chan' in k for k in self.d.names])]
+        self.nChan = len(self.chnames)
+
+        # Undo RFI 
+        self.undorfi()
 
         # Get frequency array
         self.f = self.d.freq[0]
@@ -39,13 +47,29 @@ class reduce(object):
         # data are consecutive
         #self.paddata()
 
-
-    def doreduce(self):
-        """Do full reduction of a chunk of spectrometer data"""
         self.getind()
 
+    def undorfi(self):
+        """Undo RFI"""
+
+        if np.int(self.tag[0:2]) >= 19:
+            self.d.loadRFI()
+            nsamp = np.max(self.d.data['lj_diode'])*1.0
+
+            self.d.datarfi = dc(self.d.data)
+
+            for nm in self.chnames:
+                nulled = self.d.rfinumbad[nm]
+                clean = self.d.data[nm]
+                rfival = self.d.rfi[nm]
+                self.d.datarfi[nm] =((nsamp-nulled)*clean + nulled*rfival)/nsamp
+
+
+    def doreduce(self, dosave=True, masterext=''):
+        """Do full reduction of a chunk of spectrometer data"""
+
         # Plot unmasked raw data
-        p = genplots(self)
+        p = genplots(self, masterext=masterext)
 
         print('plotting raw waterfall...')
         t = time.time()
@@ -88,9 +112,18 @@ class reduce(object):
         p.plotps()
         print('...took {:0.1f} sec'.format(time.time()-t))
 
-        print('saving data...')
-        self.savedata()
-        print('...took {:0.1f} sec'.format(time.time()-t))
+        if dosave:
+            print('undo cal and save data...')
+            self.applycal(undo=True)
+            self.savedata()
+            print('...took {:0.1f} sec'.format(time.time()-t))
+            
+        if hasattr(self.d, 'rfi'):
+            self.d.data = self.d.rfi
+            p.plotrawwf(fext='_rfi')
+            self.d.data = self.d.datarfi
+            delattr(self.d, 'rfi')
+            self.doreduce(dosave=False, masterext='_dirty')
 
 
     def paddata(self):
@@ -117,7 +150,8 @@ class reduce(object):
 
         #ind = self.d.data['lj_diode'].astype('bool')
 	#don't want bool, span now 0 to 128 vs 0 to 1 (DZ 01/18/19)
-	ind = self.d.data['lj_diode']        
+	ind = self.d.data['lj_diode']
+        maxval = np.max(ind)
 
         # Huge kludge because indices don't synch up with data correctly 
         # (CDS 10/2/17)
@@ -125,8 +159,9 @@ class reduce(object):
         #self.calind = np.roll(ind,1)
         #self.calind[0] = self.calind[1]
 	self.calind = np.zeros(self.d.nSamples).astype('bool')
-	wherecal = np.where(ind==128)[0]
+	wherecal = np.where(ind==maxval)[0]
 	self.calind[wherecal] = True	
+        self.dataind = self.d.data['lj_diode'] == 0
 
         dind = self.calind*1.0 - np.roll(self.calind,1)
         chind = np.where(dind != 0)[0]
@@ -141,15 +176,17 @@ class reduce(object):
             if dind[val]==1:
                 # Cal start index
                 sc.append(val)
-                ed.append(val-1)
-                if len(sd)==0:
-                    sd.append(0)
+                if (val-2)>0:
+                    ed.append(val-2)
+                    if len(sd)==0:
+                        sd.append(0)
             else:
                 # Cal end index
                 ec.append(val-1)
-                sd.append(val)
-                if len(sc)==0:
-                    sc.append(0)
+                if (val+1) < self.d.nSamples:
+                    sd.append(val+1)
+                    if len(sc)==0:
+                        sc.append(0)
 
         if len(ec)<len(sc):
             ec.append(self.d.nSamples-1)
@@ -158,7 +195,7 @@ class reduce(object):
 
         self.ind = {'sc':np.array(sc), 'ec':np.array(ec), 'sd':np.array(sd), 'ed':np.array(ed)}
 
-        
+
     def getcal(self):
         """Get gain cal"""
 
@@ -167,10 +204,11 @@ class reduce(object):
 
         # Calibrator ENR and any attenuation. Can be actually measured later
         self.ENR = 15 # dB
-        self.calAtten = -4.0 # dB
+        self.calAtten = 10*np.log10(1./4) # dB, putting noise diode through 2 way splitter,
+                                          # with -4 dB S21 on each output port
         
         # Load cal port coupling
-        x = dm.loadcsvbydate('S21_calport', self.tag)
+        #x = dm.loadcsvbydate('S21_calport', self.tag)
         
         # Physical calibrator temperature. Should be measured temp as function
         # of time when we have it.
@@ -179,23 +217,27 @@ class reduce(object):
         # Injected noise temperature. Interpolate measured cal port S21 onto
         # frequency grid
         f =  self.f
-        fi = x[:,0]/1e6
+        #fi = x[:,0]/1e6
         #S21x = np.interp(f, fi, x[:,1])
         #S21y = np.interp(f, fi, x[:,2])
-        S21x = -30.0
-        S21y = -30.0
-        self.Tcalfast = np.zeros((self.d.nChan, self.d.nSamples, nf))
+        #S21x = -30.0
+        #S21y = -30.0
+        S21 = -30.0
+        self.Tcalfast = np.zeros((self.d.nChanTot, self.d.nSamples, nf))
 
         # This is the excess temperature with the calibrator on
-        self.Tcalfast[0, :, :] = self.Tcalphys*10**((S21x+self.calAtten+self.ENR)/10.)
-        self.Tcalfast[1, :, :] = self.Tcalphys*10**((S21y+self.calAtten+self.ENR)/10.)        
+        Th = self.Tcalphys*(1+10**(self.ENR/10.))
+        #self.Tcalfast[0, :, :] = Th*10**((S21x+self.calAtten)/10.)
+        #self.Tcalfast[1, :, :] = Th*10**((S21y+self.calAtten)/10.)        
+        for j in range(self.d.nChanTot):
+            self.Tcalfast[j,:,:] = Th*10**((S21+self.calAtten)/10.)
 
         ############################
         # Now take mean of cal and data
 
-        self.cal = np.zeros((self.d.nChan,ncal,nf)) # Mean of cal chunks
-        self.dat = np.zeros((self.d.nChan,ncal,nf)) # Mean of surrounding data chunks
-        self.Tcal = np.zeros((self.d.nChan,ncal,nf)) # Mean of surrounding data chunks
+        self.cal = np.zeros((self.d.nChanTot,ncal,nf)) # Mean of cal chunks
+        self.dat = np.zeros((self.d.nChanTot,ncal,nf)) # Mean of surrounding data chunks
+        self.Tcal = np.zeros((self.d.nChanTot,ncal,nf)) # Mean of surrounding data chunks
 
         for k in range(ncal):
             # Cal start/stop indices
@@ -225,40 +267,83 @@ class reduce(object):
                 sda=sdb
                 eda=edb
                         
-            for j in range(self.d.nChan):
-                chn = self.getchname(j)
+            for j in range(self.d.nChanTot):
+                chn = self.getchname(j+1)
                 self.cal[j,k,:] = np.nanmean(self.d.data[chn][s:(e+1),:],0)
                 self.dat[j,k,:] = 0.5 * (np.nanmean(self.d.data[chn][sda:(eda+1),:],0)+
                                          np.nanmean(self.d.data[chn][sdb:(edb+1),:],0))
                 self.Tcal[j,k,:] = np.nanmean(self.Tcalfast[j,sdb:(eda+1),:],0)
 
         # Get cal factor in ADU^2 / K
-        self.g = (self.cal - self.dat)/self.Tcal
+        self.g = np.zeros((self.nChan, ncal, nf))
+        for k in range(self.nChan):
+            chn = self.chnames[k]
+            i,j = self.parsechname(chn)
 
+            # Gain of cross is geometric mean of gain of autos
+            g1 = (self.cal[i-1] - self.dat[i-1])/self.Tcal[i-1]
+            g2 = (self.cal[j-1] - self.dat[j-1])/self.Tcal[j-1]
+            self.g[k] = np.sqrt(g1*g2)
+        
+    def parsechname(self, ch):
+        """Parse a channel name and return channel number of cross"""
+        indch = ch.find('chan')
+        indx = ch.find('x')
+        ind_ = ch.find('_')
+        
+        if indx >= 0:
+            # Cross
+            ch1 = np.int(ch[(indch+4):indx])
+            ch2 = np.int(ch[(indx+1):(ind_-1)])
+        else:
+            # Auto
+            ch1 = np.int(ch[(indch+4):ind_])
+            ch2 = ch1
 
-    def applycal(self):
+        ch = np.sort([ch1,ch2])
+        return ch[0], ch[1]
+
+    def applycal(self, undo=False):
         """Apply calibration, for now mean of gain over time."""
 
-        for j in range(self.d.nChan):
+        for j in range(self.nChan):
+            
+            chn = self.chnames[j]
+
+            # First remove on-off spectrum from each accordint to lj_diode
+            #son  = np.nanmedian(self.d.data[chn][self.calind],  0)
+            #soff = np.nanmedian(self.d.data[chn][self.dataind], 0)
+            #ljd = self.d.data['lj_diode']*1.0 / np.max(self.d.data['lj_diode'])
+            #rmspec = np.outer(ljd, son-soff)
+
+            #self.d.data[chn] = self.d.data[chn] - rmspec
 
             # Mean of gain over time
-            gmean = np.nanmean(self.g[j], 0)
+            gmean = np.nanmedian(self.g[j], 0)
             
             # ADU^2 -> K
-            chn = self.getchname(j)
-            self.d.data[chn] = self.d.data[chn]/gmean
+            if not undo:
+                self.d.data[chn] = self.d.data[chn]/gmean
+            else:
+                self.d.data[chn] = self.d.data[chn]*gmean
 
+    def getchname(self, ch1, ch2=None):
+        """Return channel name string given channel indices"""
+        if ch2 is None:
+            ch2 = ch1
 
-    def getchname(self,chanind):
-        """Return channel name string given channel INDEX (i.e. starting from zero)"""
-        return 'chan{:d}_0'.format(chanind+1)
+        if ch1==ch2:
+            return 'chan{:d}_0'.format(ch1)
+        else:
+            ch = np.sort([ch1,ch2])
+            return 'chan{:d}x{:d}_0'.format(ch[0],ch[1])
 
 
     def maskdata(self):
         """Mask raw data, data and cal data separately."""
 
         # Initialize mask array (1 for good, 0 for bad)
-        mask = np.ones((self.d.nChan,self.d.nSamples, self.f.size)).astype('bool')
+        mask = np.ones((self.nChan,self.d.nSamples, self.f.size)).astype('bool')
 
         # Create time array
         t0 = np.arange(self.d.nSamples)*self.d.deltaT
@@ -268,9 +353,9 @@ class reduce(object):
         mf = dm.loadcsvbydate('freqmask', self.tag)
 
         # Loop over channels
-        for j in range(self.d.nChan):
+        for j in range(self.nChan):
 
-            chn = self.getchname(j)
+            chn = self.chnames[j]
             x = self.d.data[chn]
 
             ###############
@@ -335,13 +420,13 @@ class reduce(object):
                 #maskind = np.convolve(maskind.astype('float'), ker, 'same')
                 #maskind[maskind != 0] = 1
                 #maskind = maskind.astype('bool')
-
+                
 		# Mask first and last of data ind, where noise diode turns on/off
-                maskind[self.ind['sd']] = True
-                maskind[self.ind['ed']] = True
-
+                #maskind[self.ind['sd']-1] = True
+                #maskind[self.ind['ed']+1] = True
+                
                 mask[j, maskind, k] = False
-
+                
 
             ###############################
             # Always mask these frequencies
@@ -432,18 +517,10 @@ class reduce(object):
 	# if dt = deltaT, don't downsample only reformat the data
 	if dt==self.d.deltaT[0]:
 	    self.mjd = self.d.data['mjd']
-            self.data = np.full((self.d.nChan, self.d.nSamples, self.f.size), np.nan)
-            self.nhits = np.full((self.d.nChan, self.d.nSamples, self.f.size), 1)
-
-            for i in range(self.d.nChan):
-                chn = self.getchname(i)
-            	dat = self.d.data[chn]
-
-             	# Mask cal on data
-            	dat[self.calind,:] = np.nan
-
-            	# Store
-            	self.data[i] = dat
+            self.nhits = np.full((self.nChan, self.d.nSamples, self.f.size), 1)
+            self.data = np.full((self.nChan, self.d.nSamples, self.f.size), np.nan)
+            for i in range(self.nChan):
+            	self.data[i] = self.d.data[self.chnames[i]]
 
 	else:
             # MJD array has steps, make it not so
@@ -457,17 +534,17 @@ class reduce(object):
 
             # Bin data
             nbin = len(mjdbin)-1
-            self.data  = np.full((self.d.nChan, nbin, self.f.size), np.nan)
-            self.var   = np.full((self.d.nChan, nbin, self.f.size), np.nan)
-            self.nhits = np.full((self.d.nChan, nbin, self.f.size), np.nan)
+            self.data  = np.full((self.nChan, nbin, self.f.size), np.nan)
+            self.var   = np.full((self.nChan, nbin, self.f.size), np.nan)
+            self.nhits = np.full((self.nChan, nbin, self.f.size), np.nan)
             self.mjd   = np.full(nbin, np.nan)
 
             for k in range(nbin):
             	ind = np.where( (mjd >= mjdbin[k]) & (mjd < mjdbin[k+1]) )[0]
             	self.mjd[k] = np.nanmean(mjd[ind])
 
-                for j in range(self.d.nChan):
-                    chn = self.getchname(j)
+                for j in range(self.nChan):
+                    chn = self.chnames[j]
                     dat = self.d.data[chn][ind, :]
                 
                     # Mask cal on data
@@ -501,4 +578,5 @@ class reduce(object):
         np.savez(self.redfname, cal=self.cal, calAtten=self.calAtten,
                  dat=self.dat, data=self.data, dt=self.dt, ENR=self.ENR,
                  g=self.g, mjd=self.mjd, nhits=self.nhits, tag=self.tag,
-                 Tcal=self.Tcal, Tcalphys=self.Tcalphys, f=self.f, dtraw=self.dtraw) 
+                 Tcal=self.Tcal, Tcalphys=self.Tcalphys, f=self.f,
+                 dtraw=self.dtraw, chnames=self.chnames) 

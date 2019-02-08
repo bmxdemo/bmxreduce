@@ -19,12 +19,15 @@ def nanhist(x, **kwargs):
 
 class genplots():
     
-    def __init__(self, r, fext=''):
+    def __init__(self, r, masterext=''):
         """Takes reduce_init.reduce object as input, generates reduc plots"""
+
+        # Append this to all plots
+        self.masterext = ''
 
         # Reduced data
         self.r = r
-        
+                
         # Choose this (must be float)
         self.dpi = 80.0
 
@@ -51,13 +54,13 @@ class genplots():
         """Plot raw waterfall plot. Takes chan index."""
 
         if dochan is None:
-            dochan = range(self.r.d.nChan)
+            dochan = range(self.r.nChan)
         elif not np.iterable(dochan):
             dochan = [dochan]
 
         for chan in dochan:
 
-            chn = self.r.getchname(chan)
+            chn = self.r.chnames[chan]
             v = self.r.d.data[chn]
 
             # Size of data
@@ -89,8 +92,8 @@ class genplots():
             plt.title('raw {:s} adc ({:s}) -- {:s} - {:s} (UTC)'.format(chn,titlab,self.ts.iso[0:-4],self.te.iso[11:-4]))
             plt.colorbar(pad=0)
 
-            fname       = self.filebase + '_'+chn+'_wfraw'+fext+'.jpg'
-            fname_thumb = self.filebase + '_'+chn+'_wfraw'+fext+'_thumbnail.jpg'
+            fname       = self.filebase + '_'+chn+'_wfraw'+fext+self.masterext+'.jpg'
+            fname_thumb = self.filebase + '_'+chn+'_wfraw'+fext+self.masterext+'_thumbnail.jpg'
             plt.savefig(os.path.join(self.plotdir,fname), dpi=self.dpi*fac, bbox_inches='tight')
             plt.savefig(os.path.join(self.plotdir,fname_thumb), dpi=self.dpi, bbox_inches='tight')
             plt.close(fig)
@@ -100,29 +103,36 @@ class genplots():
         """Plot raw time average spectrum"""
 
         if dochan is None:
-            dochan = range(self.r.d.nChan)
+            dochan = range(self.r.nChan)
         elif not np.iterable(dochan):
             dochan = [dochan]
 
         for chan in dochan:
 
-            chn = self.r.getchname(chan)
+            chn = self.r.chnames[chan]
             v = self.r.d.data[chn]
 
-            # Get mean spectrum
-            soff = np.nanmean(v[~self.r.calind,:],0)
-            son = np.nanmean(v[self.r.calind,:],0)
+            # Get median spectrum
+            soff = np.nanmedian(v[self.r.dataind,:],0)
+            son = np.nanmedian(v[self.r.calind,:],0)
             
             # Plot
             fig = plt.figure(figsize=(7,7))
             
             plt.subplot(2,1,1)
-            plt.semilogy(self.r.f, soff, label='cal off')
-            plt.semilogy(self.r.f, son, label='cal on')
+            indoff = soff < 0
+            indon =  son < 0
+            plt.semilogy(self.r.f[~indoff], soff[~indoff], 'b', label='cal off')
+            plt.semilogy(self.r.f[~indon], son[~indon], 'g', label='cal on')
+            if np.any(indoff):
+                plt.semilogy(self.r.f[indoff], soff[indoff], 'b:')
+            if np.any(indon):
+                plt.semilogy(self.r.f[indon], son[indon], 'g:')
+
             plt.xlabel('f (MHz)')
             plt.ylabel('ADU^2')
             plt.grid('on')
-            plt.title('Mean raw spectrum, {:s}, {:s}'.format(self.r.tag,chn))
+            plt.title('Median raw spectrum, {:s}, {:s}'.format(self.r.tag,chn))
             plt.legend()
 
             plt.subplot(2,1,2)
@@ -133,7 +143,7 @@ class genplots():
             plt.ylim((0,yl[1]))
             plt.legend()
 
-            fname = self.filebase + '_'+chn+'_specraw.png'
+            fname = self.filebase + '_'+chn+'_specraw'+self.masterext+'.png'
             plt.savefig(os.path.join(self.plotdir,fname), bbox_inches='tight')
             plt.close(fig)
             gc.collect()
@@ -143,19 +153,19 @@ class genplots():
         """Plot calibrated, downsampled waterfall plot."""
 
         if dochan is None:
-            dochan = range(self.r.d.nChan)
+            dochan = range(self.r.nChan)
         elif not np.iterable(dochan):
             dochan = [dochan]
 
         for chan in dochan:
 
-            chn = self.r.getchname(chan)
+            chn = self.r.chnames[chan]
 
-            for k in range(4):
+            for k in range(5):
                 if k==0:
                     v = self.r.data[chan].T
                     titlab = 'T (K)'
-                    cl = None #changed from (0,200) for terminated data DZ (01/26/19)
+                    cl = (-300,300)
                     fext = 'data'
                 if k==1:
                     v = self.r.data_mf[chan].T
@@ -172,6 +182,11 @@ class genplots():
                     titlab = 'log10(gain) (ADU^2/K)'
                     cl = None
                     fext = 'gain'
+                if k==4:
+                    v = ((self.r.g[chan] - self.r.g[chan].mean(0))/np.nanstd(self.r.g[chan],0)).T
+                    titlab = 'gain, mean subtrated, std normalized'
+                    cl = None
+                    fext = 'gain_mf'
                 # No longer downsampling, so removing weighting for now DZ (28/01/19)
 		#if k==4:
                     #v = (self.r.nhits[chan]/self.r.var[chan]).T
@@ -216,10 +231,11 @@ class genplots():
                 plt.xlabel('freq (MHz)');
                 plt.ylabel(titlab)
                 plt.title('{:s} median {:s}'.format(chn,titlab,self.r.tag))
+                plt.grid('on')
                 if cl is not None:
                     plt.ylim(*cl)
 
-                fname = self.filebase + '_'+chn+'_medcal_'+fext+'.png'
+                fname = self.filebase + '_'+chn+'_medcal_'+fext+self.masterext+'.png'
                 plt.savefig(os.path.join(self.plotdir,fname), bbox_inches='tight')
 
                 plt.close(fig)
@@ -230,13 +246,13 @@ class genplots():
         """Plot variance and expected variance from radiometer equation"""
         
         if dochan is None:
-            dochan = range(self.r.d.nChan)
+            dochan = range(self.r.nChan)
         elif not np.iterable(dochan):
             dochan = [dochan]
 
         for chan in dochan:
 
-            chn = self.r.getchname(chan)
+            chn = self.r.chnames[chan]
 
             for fld in fld_in:
                 # Actual variance
@@ -270,7 +286,7 @@ class genplots():
                 plt.ylim(0,10)
                 plt.plot([self.r.f[0],self.r.f[-1]],[1,1],':k')
 
-                fname = self.filebase + '_'+chn+'_variance_'+fld+'.png'
+                fname = self.filebase + '_'+chn+'_variance_'+fld+self.masterext+'.png'
                 plt.savefig(os.path.join(self.plotdir,fname), bbox_inches='tight')
                 plt.close(fig)
                 gc.collect()
@@ -280,13 +296,13 @@ class genplots():
         """Plot power spectrum over time for each frequency"""
 
         if dochan is None:
-            dochan = range(self.r.d.nChan)
+            dochan = range(self.r.nChan)
         elif not np.iterable(dochan):
             dochan = [dochan]
 
         for chan in dochan:
 
-            chn = self.r.getchname(chan)
+            chn = self.r.chnames[chan]
 
             for fld in fld_in:
                 # Do rfft
@@ -313,8 +329,8 @@ class genplots():
                 plt.title('Power spectrum (K^2), {:s}, {:s}'.format(chn,self.r.tag))
                 plt.colorbar(pad=0)
 
-                fname       = self.filebase + '_'+chn+'_pswf_'+fld+'.png'
-                fname_thumb = self.filebase + '_'+chn+'_pswf_'+fld+'_thumbnail.png'
+                fname       = self.filebase + '_'+chn+'_pswf_'+fld+self.masterext+'.png'
+                fname_thumb = self.filebase + '_'+chn+'_pswf_'+fld+self.masterext+'_thumbnail.png'
                 plt.savefig(os.path.join(self.plotdir,fname_thumb), dpi=self.dpi, bbox_inches='tight')
                 plt.savefig(os.path.join(self.plotdir,fname), dpi=self.dpi*fac, bbox_inches='tight')
                 plt.close(fig)
@@ -338,7 +354,7 @@ class genplots():
                 plt.grid('on')
                 plt.legend(loc='lower left')
 
-                fname = self.filebase + '_'+chn+'_psloglog_'+fld+'.png'
+                fname = self.filebase + '_'+chn+'_psloglog_'+fld+self.masterext+'.png'
                 plt.savefig(os.path.join(self.plotdir,fname), bbox_inches='tight')
                 plt.close(fig)
                 gc.collect()
@@ -357,13 +373,16 @@ class genhtml():
         self.tags = dm.tags[::-1]
         self.htmldir = 'browser'
 
+        # Now cut tags and do new index
+        dm.gettags(applycuts=True)
+        self.tagscut = dm.tags[::-1]
+
     def maybe_create_dirs(self):
         if not os.path.exists(self.htmldir):
             print ("Creating directory structure under",self.htmldir)
             os.makedirs(self.htmldir)
             os.makedirs(os.path.join(self.htmldir,'pages'))
-            os.makedirs(os.path.join(self.htmldir,'plots'))
-            
+            os.makedirs(os.path.join(self.htmldir,'plots'))            
             
     def genindex(self):
         """Generate index page"""
@@ -382,6 +401,7 @@ class genhtml():
         f.write('<!--\n')
         f.write('type="medcal_data";\n')
         f.write('chan="chan1_0";\n')
+        f.write('rfiext="";\n')
 
         f.write('tag=\'\';\n')
         f.write('url=\'\';\n')
@@ -396,13 +416,13 @@ class genhtml():
         f.write(' }\n')
         f.write('\n')
         f.write(' if (type.includes("wf")) {\n')
-        f.write('   tagpage.document["reduc"].style.width="100%";\n')
-        f.write('   linkurl = url_base + tag + "_" + chan + "_" + type + ext;\n')
-        f.write('   url     = url_base + tag + "_" + chan + "_" + type + "_thumbnail"+ext;\n')
+        f.write('   tagpage.document["reduc"].style.width="auto";\n')
+        f.write('   linkurl = url_base + tag + "_" + chan + "_" + type + rfiext + ext;\n')
+        f.write('   url     = url_base + tag + "_" + chan + "_" + type + rfiext + "_thumbnail"+ext;\n')
         f.write(' } else {\n')
         f.write('   tagpage.document["reduc"].style.width="auto";\n')
-        f.write('   url     = url_base + tag + "_" + chan + "_" + type + ext;\n')
-        f.write('   linkurl = url_base + tag + "_" + chan + "_" + type + ext;\n')
+        f.write('   url     = url_base + tag + "_" + chan + "_" + type + rfiext + ext;\n')
+        f.write('   linkurl = url_base + tag + "_" + chan + "_" + type + rfiext + ext;\n')
         f.write(' }\n')
         f.write('\n')
         f.write(' tagpage.document["reduc"].src=url;\n')
@@ -411,6 +431,11 @@ class genhtml():
         f.write('\n')
         f.write('function set_type(plot_type){\n')
         f.write('  type=plot_type;\n')
+        f.write('  plupdate();\n')
+        f.write('}\n')
+        f.write('\n')
+        f.write('function set_rfiext(rfi){\n')
+        f.write('  rfiext=rfi;\n')
         f.write('  plupdate();\n')
         f.write('}\n')
         f.write('\n')
@@ -442,6 +467,7 @@ class genhtml():
         """Generate tag index page"""
 
         self.maybe_create_dirs()
+
         f = open(os.path.join(self.htmldir,'tag_index.html'),'w')
 
         f.write('<html>\n')
@@ -463,9 +489,16 @@ class genhtml():
 
             if np.mod(k,6) == 0:
                 f.write('<tr>\n')
-            f.write('<td><a href="pages/{:s}.html" target="tagpage">{:s}</a>\n'.format(tag,tag[7:]))
+            
+            if tag in self.tagscut:
+                f.write('<td><a href="pages/{:s}.html" target="tagpage">{:s}</a>\n'.format(tag,tag[7:]))
+            else:
+                f.write('<td><a href="pages/{:s}.html" target="tagpage"><font color="gray">{:s}</font></a>\n'.format(tag,tag[7:]))
+
             k += 1
             tag0 = tag
+
+        f.close()
 
     def gentagpages(self):
         """Generate individual tag pages"""
@@ -504,11 +537,15 @@ class genhtml():
             f.write('function set_chan(cc){\n')
             f.write('  parent.set_chan(cc);\n')
             f.write('}\n')
+            f.write('function set_rfiext(rr){\n')
+            f.write('  parent.set_rfiext(rr);\n')
+            f.write('}\n')
             f.write('//-->\n')
             f.write('</SCRIPT>\n')
             f.write('\n')
             f.write('<center>\n')
             f.write('\n')
+
             f.write('<table border="0" cellspacing="1" cellpadding="3">\n')
             f.write('<tr><th>Median spectrum: </th>\n')
             f.write('<td><a href="javascript:set_type(\'specraw\');">raw</a></td>\n')
@@ -523,11 +560,15 @@ class genhtml():
             f.write('<table border="0" cellspacing="1" cellpadding="3">\n')
             f.write('<tr><th>Calibrated, downsampled waterfall plots: </th>\n')
             f.write('<td><a href="javascript:set_type(\'wfcal_data\');">data</a></td>\n')
-            f.write('<td><a href="javascript:set_type(\'wfcal_data_mf\');">mean filter</a></td>\n')
+            f.write('<td><a href="javascript:set_type(\'wfcal_data_mf\');">data + mean filter</a></td>\n')
             f.write('<td><a href="javascript:set_type(\'wfcal_data_svd\');">mean+SVD filter</a></td>\n')
             f.write('<td><a href="javascript:set_type(\'wfcal_gain\');">gain</a></td>\n')
-            f.write('<td><a href="javascript:set_type(\'wfcal_weight\');">weight</a></td>\n')
+            f.write('<td><a href="javascript:set_type(\'wfcal_gain_mf\');">gain + mean filter</a></td>\n')
+            if np.float(tag[0:2]) < 19:
+                f.write('<td><a href="javascript:set_type(\'wfcal_weight\');">weight</a></td>\n')
+
             f.write('</tr>\n')
+
             f.write('</table>\n')
             f.write('\n')
             f.write('<table border="0" cellspacing="1" cellpadding="3">\n')
@@ -536,9 +577,13 @@ class genhtml():
             f.write('<td><a href="javascript:set_type(\'wfraw_mask\');">after masking</a></td>\n')
             f.write('<td><a href="javascript:set_type(\'wfraw_cal\');">after cal (log)</a></td>\n')
             f.write('<td><a href="javascript:set_type(\'wfraw_callin\');">after cal (lin)</a></td>\n')
+            if np.float(tag[0:2]) >= 19:
+                f.write('<td><a href="javascript:set_type(\'wfraw_rfi\');">weight</a></td>\n')
+
             f.write('</tr>\n')
             f.write('</table>\n')
             f.write('\n')
+
             f.write('<table border="0" cellspacing="1" cellpadding="3">\n')
             f.write('<tr><th>Power spectra: </th>\n')
             f.write('<td><a href="javascript:set_type(\'pswf_data_mf\');">WF</a></td>\n')
@@ -548,11 +593,58 @@ class genhtml():
             f.write('</tr>\n')
             f.write('</table>\n')
             f.write('\n')
-            f.write('<table border="0" cellspacing="1" cellpadding="3">\n')
-            f.write('<tr><th>channel: </th><td><a href="javascript:set_chan(\'chan1_0\');">1</a></td>\n')
-            f.write('<td><a href="javascript:set_chan(\'chan2_0\');">2</a></td>\n')
-            f.write('</tr>\n')
-            f.write('</table>\n')
+
+            if np.float(tag[0:2]) >= 19:
+                f.write('</table>\n')
+                f.write('\n')
+                f.write('<table border="0" cellspacing="1" cellpadding="3">\n')
+                f.write('<tr><th>RFI Rejection: </th>\n')
+                f.write('<td><a href="javascript:set_rfiext(\'\');">on (default)</a></td>\n')
+                f.write('<td><a href="javascript:set_rfiext(\'_dirty\');">off</a></td>\n')
+                f.write('</table>\n')
+                f.write('\n')
+
+            if np.float(tag[0:2]) < 19:            
+                f.write('<table border="1" cellspacing="1" cellpadding="3">\n')
+                f.write('<tr>')
+                f.write('<td>Channel:</td>\n')
+                f.write('<td><a href="javascript:set_chan(\'chan1_0\');">1</a></td>\n')
+                f.write('<td><a href="javascript:set_chan(\'chan2_0\');">2</a></td>\n')
+                f.write('</table>\n')
+            else:
+                Nchan = 4
+                f.write('<table border="0" cellspacing="3">\n')
+                f.write('<tr>')
+                for offset in [0, 4]:
+                    f.write('<td>')
+                    f.write('<table border="1" cellspacing="1" cellpadding="3">\n')
+                    f.write('<tr>')
+                    f.write('<td>')
+                    for n in np.arange(Nchan).astype(int)+offset:
+                        f.write('<td>{:d}'.format(n+1))
+                    f.write('<tr>')
+                    for i in np.arange(Nchan).astype(int)+offset:
+                        for j in np.arange(Nchan+1).astype(int)+offset:
+                            if (j==offset):
+                                f.write('<td>{:d}</td>\n'.format(i+1))
+                            else:
+                                if j>=(i+1):
+                                    if j==(i+1):
+                                        rchn = 'chan{:d}_0'.format(i+1)
+                                        ichn = 'chan{:d}_0'.format(i+1)                                    
+                                    else:
+                                        rchn = 'chan{:d}x{:d}R_0'.format(i+1,j)
+                                        ichn = 'chan{:d}x{:d}I_0'.format(i+1,j)
+                                    if j==(i+1):
+                                        f.write('<td>{:d}x{:d} <a href="javascript:set_chan(\'{:s}\');">R</a></td>'.format(i+1,j,rchn))
+                                    else:
+                                        f.write('<td>{:d}x{:d} <a href="javascript:set_chan(\'{:s}\');">R</a> / <a href="javascript:set_chan(\'{:s}\');">I</a></td>'.format(i+1,j,rchn,ichn))
+                                else:
+                                    f.write('<td>'.format(i+1,j))
+                            if j==(Nchan+offset):
+                                f.write('<tr>')
+                    f.write('</table>')
+                f.write('</table>')
             f.write('\n')
             f.write('<a href="../plots/{:s}_chan1_0_medcal_data.png" id="reduc_link">\n'.format(tag))
             f.write('<img src="../plots/{:s}_chan1_0_medcal_data.png" width=""  name="reduc">\n'.format(tag))
