@@ -217,8 +217,8 @@ class genplots():
                 plt.title('{:s} {:s} -- {:s} - {:s} (UTC)'.format(chn,titlab,self.ts.iso[0:-4],self.te.iso[11:-4]))
                 plt.colorbar(pad=0)
 
-                fname       = self.filebase + '_'+chn+'_wfcal_'+fext+'.png'
-                fname_thumb = self.filebase + '_'+chn+'_wfcal_'+fext+'_thumbnail.png' 
+                fname       = self.filebase + '_'+chn+'_wfcal_'+fext+self.masterext+'.png'
+                fname_thumb = self.filebase + '_'+chn+'_wfcal_'+fext+self.masterext+'_thumbnail.png' 
                 plt.savefig(os.path.join(self.plotdir,fname), dpi=self.dpi*fac, bbox_inches='tight')
                 plt.savefig(os.path.join(self.plotdir,fname_thumb), dpi=self.dpi, bbox_inches='tight')
 
