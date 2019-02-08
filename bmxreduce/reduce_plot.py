@@ -23,7 +23,7 @@ class genplots():
         """Takes reduce_init.reduce object as input, generates reduc plots"""
 
         # Append this to all plots
-        self.masterext = ''
+        self.masterext = masterext
 
         # Reduced data
         self.r = r
