@@ -555,6 +555,7 @@ class genhtml():
             f.write('<td><a href="javascript:set_type(\'medcal_gain\');">gain</a></td>\n')
             f.write('<td><a href="javascript:set_type(\'medcal_weight\');">weight</a></td>\n')
             f.write('</tr>\n')
+
             f.write('</table>\n')
             f.write('\n')
             f.write('<table border="0" cellspacing="1" cellpadding="3">\n')
@@ -578,7 +579,7 @@ class genhtml():
             f.write('<td><a href="javascript:set_type(\'wfraw_cal\');">after cal (log)</a></td>\n')
             f.write('<td><a href="javascript:set_type(\'wfraw_callin\');">after cal (lin)</a></td>\n')
             if np.float(tag[0:2]) >= 19:
-                f.write('<td><a href="javascript:set_type(\'wfraw_rfi\');">weight</a></td>\n')
+                f.write('<td><a href="javascript:set_type(\'wfraw_rfi\');">RFI</a></td>\n')
 
             f.write('</tr>\n')
             f.write('</table>\n')
