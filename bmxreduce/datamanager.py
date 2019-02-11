@@ -80,9 +80,11 @@ class datamanager(object):
                 st = st[~ind]
 
         if new:
-            # Only return tags lacking a reduced file
+            # Only return tags lacking a reduced file, >=2019
             ind = np.array([os.path.isfile(self.getreducedfname(k)) for k in tags])
             tags = tags[~ind]
+            yr, _, _, _, _ = self.parsetags(tags)
+            tags = tags[yr>=19]
 
         if reduced:
             # Only return tags with a reduced file
