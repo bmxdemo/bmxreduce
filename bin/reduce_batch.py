@@ -1,8 +1,6 @@
 #!/usr/bin/env python
 import matplotlib as mpl
 mpl.use('Agg')
-import sys
-sys.path+=['.','..','bmxreduce','../bmxdaq/py']
 import bmxreduce as br
 from optparse import OptionParser
 

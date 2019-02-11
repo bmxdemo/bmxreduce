@@ -1,6 +1,4 @@
 #!/usr/bin/env python
-import sys
-sys.path+=['.','..','bmxreduce']
 import bmxreduce as br
 import farmit
 
