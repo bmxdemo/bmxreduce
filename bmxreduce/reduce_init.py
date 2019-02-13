@@ -29,7 +29,10 @@ class reduce(object):
 
         print('loading data...')
         t = time.time()
-        self.d = bmxdata.BMXFile(self.rawfname, loadD2=True)
+	if np.int(self.tag[0:2]) >= 19:
+            self.d = bmxdata.BMXFile(self.rawfname, loadD2=True, loadRFI=True)
+	else:
+	    self.d = bmxdata.BMXFile(self.rawfname)	
         print('...took {:0.1f} sec'.format(time.time()-t))
 
         # Channel names to plot
@@ -53,7 +56,6 @@ class reduce(object):
         """Undo RFI"""
 
         if np.int(self.tag[0:2]) >= 19:
-            self.d.loadRFI()
             nsamp = np.max(self.d.data['lj_diode'])*1.0
 
             self.d.datarfi = dc(self.d.data)
