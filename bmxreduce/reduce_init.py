@@ -40,7 +40,8 @@ class reduce(object):
         self.nChan = len(self.chnames)
 
         # Undo RFI 
-        self.undorfi()
+        if hasattr(self.d, 'rfi'):
+            self.undorfi()
 
         # Get frequency array
         self.f = self.d.freq[0]
