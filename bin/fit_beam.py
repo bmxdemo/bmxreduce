@@ -14,8 +14,9 @@ from scipy.optimize import minimize
 
 ## Let's load data, extract some frequencies and then see where we stand
 
-fmin,fmax = 1215.,1240.
-#fmin,fmax = 1300.,1400
+#fmin,fmax = 1215.,1240.
+#fmin,famx = 1167.,1185.
+fmin,fmax = 1300.,1400
 
 flist=sorted(glob.glob('data/reduced/1803/18030[4,5]*.npz'))
 
@@ -53,13 +54,13 @@ if True:
 
     print mjd.shape, sig.shape
     plt.subplot(2,1,1)
-    plt.plot(mjd,sig-85.)
-    plt.ylabel('sig-85')
+    plt.plot(mjd,sig-80)
+    plt.ylabel('sig')
     plt.legend()
 
     plt.subplot(2,1,2)
-    plt.plot(mjd,sig-85.)
-    plt.ylabel('sig-85')
+    plt.plot(mjd,sig-80)
+    plt.ylabel('sig')
     plt.semilogy()
     plt.xlabel('time [mjd]')
     plt.show()
@@ -73,7 +74,7 @@ meany=0.0
 sigmaxx=3**2
 sigmayy=sigmaxx
 sigmaxy=0.0
-ofs=85.
+ofs=95.
 
 deg2rad=1/180.*np.pi
 
@@ -109,7 +110,7 @@ def chi2(x):
     return chi2
 
 
-xg=[meanx,meany,sigmaxx,sigmayy,sigmaxy,ofs]+list(300*np.ones(len(sats)))
+xg=[meanx,meany,sigmaxx,sigmayy,sigmaxy,ofs]+list(100*np.ones(len(sats)))
 
 mod=msig(xg)
 plt.plot(mjd,sig,label='data')
