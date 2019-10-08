@@ -2,6 +2,8 @@ import numpy as np
 from glob import glob
 import os
 from datetime import datetime, timedelta
+from astropy.time import Time
+from . import telescope
 
 class datamanager(object):
     
@@ -19,7 +21,7 @@ class datamanager(object):
         return
 
     
-    def gettags(self, new=False, reduced=False, applycuts=False, hasD2=True):
+    def setTags(self, new=False, reduced=False, applycuts=False, hasD2=True):
         """Get a list of all data tags with spectrometer files and in "good"
         time periods
         
@@ -148,10 +150,13 @@ class datamanager(object):
             ext = '_D1'
         else:
             ext = ''
-
         return os.path.join(self.dataroot,taginfo[0]+taginfo[1], tag + ext+'.data')
 
+    def UTCTimesStr(self):
+        return ['20%s-%s-%sT%s:%s:00'%(tag[0:2],tag[2:4],tag[4:6],tag[7:9], tag[9:11]) for tag in self.tags]
 
+
+    
     def getreducedfname(self, tag):
         """Get filename from tag"""
         taginfo = self.parsetag(tag)
@@ -183,16 +188,23 @@ class datamanager(object):
         
         ind = np.where(fndate == np.max(fndate))[0][0]
         
-        print('loading {:s}'.format(fn[ind]))
+        print(('loading {:s}'.format(fn[ind])))
         x = np.loadtxt(fn[ind], delimiter=',', comments='#')
 
         return x
 
 
-    def getradec(self):
-        """Get RA/Dec coordinates"""
-        time = Time(self.d.data['mjd'], format='mjd')
-        point = AltAz(alt=90*u.deg, az=0*u.deg, location=telescope_loc, obstime=time)
-        sky = point.transform_to(SkyCoord(0*u.deg, 0*u.deg, frame='icrs'))
-        self.ra = sky.ra
-        self.dec = sky.dec
+
+    def setPassages(self):
+        if not hasattr(self,"tags"):
+            dm.setTages(new=True)
+        times=Time(self.UTCTimesStr(), format='isot', scale='utc')
+        ra,dec,gall,galb = telescope.Time2coords(times)
+        #for t,r,d,l,b in zip(self.tags,ra,dec,gall,galb):
+        #    print (t,r,d,l,b)
+        """ We pass the galaxy twice, when ra 1.2 (far end) and when ra~2.4 (closer to galactic center)
+            Cygnus A passage is Ra~300 deg
+            Each passage goes from ra=240 deg to the following 360 completion"""
+        
+        
+        

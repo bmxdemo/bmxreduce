@@ -1,3 +1,11 @@
+###
+##
+## OBSOLETE
+##
+###
+
+
+
 import numpy as np
 from glob import glob
 import os
@@ -6,7 +14,7 @@ from datetime import datetime, timedelta
 from astropy.coordinates import EarthLocation, AltAz,SkyCoord
 from astropy.time import Time
 import time
-from datamanager import datamanager
+from .datamanager import datamanager
 
 telescope_loc = EarthLocation(lat=40.87792*u.deg, lon=-72.85852*u.deg, height=0*u.m)
 

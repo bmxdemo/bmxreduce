@@ -28,7 +28,7 @@ def getcuts(mapdir, gettags=False):
 
 
         if k==0:
-            cnames = c[0].keys()
+            cnames = list(c[0].keys())
             cc = c
             for n in range(nchan):
                 for cn in cnames:
@@ -68,7 +68,7 @@ def getclim():
 def plotcuts(c, clim=None):
     """Plot cuts"""
 
-    cnames = c[0].keys()
+    cnames = list(c[0].keys())
     cnames.sort()
     cnames = cnames[0:6] + cnames[7:10] + [cnames[6]] + cnames[10:]
     nchan = len(c)
@@ -134,7 +134,7 @@ def plotcuts(c, clim=None):
 def getmaskval(cs, cl):
     """Return True if data should be retained, False if it should be cut"""
     maskval = True
-    for cn in cs.keys():
+    for cn in list(cs.keys()):
         lo = cl[cn][0]
         hi = cl[cn][1]
         if (cs[cn]<lo) | (cs[cn]>hi):

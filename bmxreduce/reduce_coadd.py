@@ -1,3 +1,10 @@
+###
+##
+## OBSOLETE
+##
+###
+
+
 import numpy as np
 from glob import glob
 import os
@@ -6,8 +13,8 @@ from datetime import datetime, timedelta
 from astropy.coordinates import EarthLocation, AltAz,SkyCoord
 from astropy.time import Time
 import time
-from mapmanager import mapmanager
-import cutstats
+from .mapmanager import mapmanager
+from . import cutstats
 from time import time
 from sklearn.linear_model import Ridge
 import matplotlib.pyplot as plt
@@ -76,13 +83,13 @@ class coaddbygroup(mapmanager):
                 fn = self.getreducedfname(val)
             else:
                 fn = self.getreducedsimfname(val, self.sn, self.fields)
-            print('loading {0}'.format(fn))
+            print(('loading {0}'.format(fn)))
             sys.stdout.flush()
             x0 = np.load(fn)
 
             # Convert to dictionary so we can manipulate it
             x = {}
-            for fld in x0.keys():
+            for fld in list(x0.keys()):
                 x[fld] = x0[fld]
 
             # fld gain calibration
@@ -257,7 +264,7 @@ class coaddbygroup(mapmanager):
 
 
         rr=Ridge(alpha=self.cpmalpha, normalize=True, fit_intercept=False)
-        print('CPM ridge regression alpha = {:0.2E}'.format(rr.alpha))
+        print(('CPM ridge regression alpha = {:0.2E}'.format(rr.alpha)))
         sys.stdout.flush()
 
         # Time axis in minutes
@@ -272,7 +279,7 @@ class coaddbygroup(mapmanager):
                 absdt = np.abs(t-t0)
                 doindt = np.where( (absdt>=self.cpmdtmin) & (absdt<=self.cpmdtmax))[0]
 
-                print('{:d} of {:d} time steps'.format(i,len(t)))
+                print(('{:d} of {:d} time steps'.format(i,len(t))))
                 sys.stdout.flush()
 
                 dt = [] # timing
@@ -322,7 +329,7 @@ class coaddbygroup(mapmanager):
                     e = time()
                     dt.append(e-s)
                     
-                print('mean time per freq. is {:f} s'.format(np.array(dt).mean()))
+                print(('mean time per freq. is {:f} s'.format(np.array(dt).mean())))
                 sys.stdout.flush()
 
     def interpmod(self):
@@ -468,7 +475,7 @@ class coaddbyday(coaddbygroup):
 
         for k,val in enumerate(fn):
 
-            print('coadding {:s}'.format(val))
+            print(('coadding {:s}'.format(val)))
 
             self.load(val)
             self.data = self.data - self.mod - self.modcpm
@@ -568,7 +575,7 @@ class coaddbyday(coaddbygroup):
             for n in range(self.nchan):
                 if not cutstats.getmaskval(self.cutstat[n], self.clim):
                     # Set weights to zero
-                    print('cutting channel {:d}, day {:s}, setting weights to zero'.format(n,self.tags[0]))
+                    print(('cutting channel {:d}, day {:s}, setting weights to zero'.format(n,self.tags[0])))
                     self.w0[n,:,:] = 0
 
 
