@@ -1,24 +1,44 @@
 #
 #
 # Utility function for transformations, etc.
-#
+import os, pickle
+import numpy as np
 from astropy.coordinates import EarthLocation, AltAz,SkyCoord
 from astropy.time import Time
 import astropy.units as u
 
 
+
 def location():
     return EarthLocation(lat=40.87792*u.deg, lon=-72.85852*u.deg, height=0*u.m)
 
+def time2coord(time):
+    point=AltAz(alt=90*u.deg, az=0*u.deg, location=location(), obstime=time)
+    sky = point.transform_to(SkyCoord(0*u.deg, 0*u.deg, frame='icrs'))
+    gal = point.transform_to(SkyCoord(0*u.deg, 0*u.deg, frame='galactic'))
+    ra = sky.ra.rad 
+    dec = sky.dec.rad 
+    gall = gal.l.rad
+    galb = gal.b.rad
+    return ra,dec,gall,galb
 
-def Time2coords(times):
-    points = [AltAz(alt=90*u.deg, az=0*u.deg, location=location(), obstime=time) for time in times]
-    sky = [point.transform_to(SkyCoord(0*u.deg, 0*u.deg, frame='icrs')) for point in points]
-    gal = [point.transform_to(SkyCoord(0*u.deg, 0*u.deg, frame='galactic')) for point in points]
-    ra = [s.ra.rad for s in sky]
-    dec = [s.dec.rad for s in sky]
-    gall = [g.l.rad for g in gal]
-    galb = [g.b.rad for g in gal]
+def times2coords(times,usecache=True):
+    cafn="cache/times2coords.pickle"
+    cad={}
+    ncount=0
+
+    if usecache and os.path.isfile(cafn):
+        cad=pickle.load(open(cafn,'rb'))
+    for t in times:
+        ts=str(t)
+        if not ts in cad:
+            cad[ts]=time2coord(t)
+            ncount+=1
+    if usecache and ncount>0:
+        print ("Calculated %i new coord conversions for a total of %i."%(ncount,len(cad)))
+        pickle.dump(cad,open(cafn,'wb'))
+    res=np.array([cad[str(t)] for t in times])
+    ra,dec,gall,galb=res.T
     return ra,dec,gall, galb
     
         

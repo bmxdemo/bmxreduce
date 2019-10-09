@@ -195,16 +195,88 @@ class datamanager(object):
 
 
 
+    
     def setPassages(self):
         if not hasattr(self,"tags"):
             dm.setTages(new=True)
         times=Time(self.UTCTimesStr(), format='isot', scale='utc')
-        ra,dec,gall,galb = telescope.Time2coords(times)
-        #for t,r,d,l,b in zip(self.tags,ra,dec,gall,galb):
-        #    print (t,r,d,l,b)
+        ## find consequent tags
+
+        ctags=[]
+        for i,tag in enumerate(self.tags):
+            if (i==0):
+                ctags.append([tag])
+            else:
+                if ((self.parsetag(tag)[4]=='00') ### mins=0
+                    and (times[i]-times[i-1]).value<2/24): ## less than two hours since last one
+                    ctags[-1].append(tag)
+                else:
+                    ctags.append([tag])
+        print ("Found %i tags in %i consequent chunks."%(len(self.tags),len(ctags)))
+        
+        ra,dec,gall,galb = telescope.times2coords(times)
+
+        ## first get passages
+        radegd={}
+        for t,ra in zip(self.tags,ra):
+            radegd[t]=ra*180/np.pi
+
         """ We pass the galaxy twice, when ra 1.2 (far end) and when ra~2.4 (closer to galactic center)
             Cygnus A passage is Ra~300 deg
-            Each passage goes from ra=240 deg to the following 360 completion"""
+            Each passage goes from ra=270 deg to the following 330 completion"""
+
+        passages=[]
+        fragments=[]
+        ## first attempt to find full passages
+        for chunk in ctags:
+            if len(chunk)<25:
+                continue ## no way we can fit in here
+            startl=[]
+            endl=[]
+            for i in range(len(chunk)-1):
+                t1=chunk[i]
+                t2=chunk[i+1]
+                if radegd[t1]<270 and radegd[t2]>270:
+                    #found start
+                    startl.append(i)
+                if radegd[t1]<330 and (radegd[t2]>330 or radegd[t2]<0):
+                    if (len(startl)>0):
+                        endl.append(i)
+            ## now we put them together correctly:
+            #print (startl,endl)
+            for s,e in zip(startl[:-1],endl[1:]):
+                #print ("Found start end: ",chunk[s],chunk[e])
+                assert((e-s>20) and (e-s<30))
+                
+                passages.append(chunk[s:e+1])
+                
+        print ("Found %i full passages."%len(passages))
+        used=set()
+        for pas in passages:
+            used.update(pas)
+        ## find fragments
+
+
+        for chunk in ctags:
+            newfrag=True
+            for i,t in enumerate(chunk):
+                if t in used:
+                    newfrag=True
+                else:
+                    if newfrag:
+                        fragments.append([t])
+                        newfrag=False
+                    else:
+                        fragments[-1].append(t)
+            
+        print ("Found %i fragments."%len(fragments))
+        #print (passages[:4])
+        #print ('---')
+        #for f in fragments:
+        #    if (len(f)>40):
+        #        for t in f:
+        #            print (t,radegd[t])
+
         
         
         
