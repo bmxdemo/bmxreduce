@@ -17,7 +17,7 @@ class datamanager(object):
         inherit this"""
         self.dataroot = 'data/raw'
         self.reducedroot='data/reduced'
-        self.reducedsimroot='data/reduced_sim'
+        #self.reducedsimroot='data/reduced_sim'
         return
 
     
@@ -106,8 +106,8 @@ class datamanager(object):
                     keepind[k] = 0
             tags = tags[keepind]
             
-        self.tags = np.sort(tags)
-        self.fnames = [self.getrawfname(k) for k in self.tags]
+        self._tags = np.sort(tags)
+        self.fnames = [self.getrawfname(k) for k in self._tags]
 
 
     def tag2datetime(self, tag):
@@ -153,7 +153,7 @@ class datamanager(object):
         return os.path.join(self.dataroot,taginfo[0]+taginfo[1], tag + ext+'.data')
 
     def UTCTimesStr(self):
-        return ['20%s-%s-%sT%s:%s:00'%(tag[0:2],tag[2:4],tag[4:6],tag[7:9], tag[9:11]) for tag in self.tags]
+        return ['20%s-%s-%sT%s:%s:00'%(tag[0:2],tag[2:4],tag[4:6],tag[7:9], tag[9:11]) for tag in self._tags]
 
 
     
@@ -198,12 +198,12 @@ class datamanager(object):
     
     def setPassages(self):
         if not hasattr(self,"tags"):
-            dm.setTages(new=True)
+            self.setTags(new=True)
         times=Time(self.UTCTimesStr(), format='isot', scale='utc')
         ## find consequent tags
 
         ctags=[]
-        for i,tag in enumerate(self.tags):
+        for i,tag in enumerate(self._tags):
             if (i==0):
                 ctags.append([tag])
             else:
@@ -212,13 +212,13 @@ class datamanager(object):
                     ctags[-1].append(tag)
                 else:
                     ctags.append([tag])
-        print ("Found %i tags in %i consequent chunks."%(len(self.tags),len(ctags)))
+        print ("Found %i tags in %i consequent chunks."%(len(self._tags),len(ctags)))
         
         ra,dec,gall,galb = telescope.times2coords(times)
 
         ## first get passages
         radegd={}
-        for t,ra in zip(self.tags,ra):
+        for t,ra in zip(self._tags,ra):
             radegd[t]=ra*180/np.pi
 
         """ We pass the galaxy twice, when ra 1.2 (far end) and when ra~2.4 (closer to galactic center)
@@ -276,7 +276,31 @@ class datamanager(object):
         #    if (len(f)>40):
         #        for t in f:
         #            print (t,radegd[t])
+        self._passages=passages
+        self._fragments=fragments
 
-        
-        
-        
+    def passages(self):
+        if not hasattr(self,"_passages"):
+            self.setPassages()
+        return self._passages
+
+    def fragments(self):
+        if not hasattr(self,"_fragments"):
+            self.setPassages()
+        return self._fragments
+
+    def tags(self):
+        if not hasattr(self,"_tags"):
+            self.setTags()
+        return self._tags
+
+    def reduce_stage_root (self,typ,pas):
+        return os.path.join(self.reducedroot,typ,pas)        
+
+    def reduce_stage(self,typ,pas):
+        fn = self.reduce_stage_root(typ,pas)+'/stage'
+        if os.path.isfile(fn):
+            stage=int(open(fn).readlines()[0])
+        else:
+            stage=0
+        return stage

@@ -1,4 +1,8 @@
+#
+# deprecated
+#
 #!/usr/bin/env python
+stop()
 import matplotlib as mpl
 mpl.use('Agg')
 import bmxreduce as br
