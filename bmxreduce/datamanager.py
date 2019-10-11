@@ -294,11 +294,11 @@ class datamanager(object):
             self.setTags()
         return self._tags
 
-    def reduce_stage_root (self,typ,pas):
+    def reduce_root (self,typ,pas):
         return os.path.join(self.reducedroot,typ,pas)        
 
     def reduce_stage(self,typ,pas):
-        fn = self.reduce_stage_root(typ,pas)+'/stage'
+        fn = self.reduce_root(typ,pas)+'/stage'
         if os.path.isfile(fn):
             stage=int(open(fn).readlines()[0])
         else:
