@@ -45,7 +45,7 @@ def times2coords(times,usecache=True):
 def mjd2coords(mjd):
     """Get RA/Dec coordinates"""
     times = Time(mjd, format='mjd')
-    return Time2radec(times)
+    return times2coords(times)
 
 
 
