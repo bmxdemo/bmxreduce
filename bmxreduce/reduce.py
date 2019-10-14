@@ -109,12 +109,41 @@ class reduce:
                 ##
                 ## Now caclulate ra/dec so that we can get cut into our passage
                 ##
-                -----------work here
+                self.log('Calculating MJDs and celestical coords...')
+                mjdlist=np.arange(mjd[0],mjd[-1]+0.005,0.005)## every 7 mins or so
+                ra,dec,gall,galb=mjd2coords(mjdlist)
+                ## set up interpolator
+                raint=interp1d(mjdlist,ra)
+                decint=interp1d(mjdlist,dec)
+                gallint=interp1d(mjdlist,gall)
+                galbint=interp1d(mjdlist,galb)
+                radeg=raint(mjd)*180/np.pu
+                if selt.typ=='pas':
+                    istart=np.where(radeg>270.0)[0][0]-1
+                    iend=np.where(radeg<330.0)[0][0]+1
+                else:
+                    istart=0
+                    iend=len(mjd)
+                    print ("Cutting %i %i samples at beginning /  end..."%(istart,len(mjd)-iend))
+
             else:
                 ## we now have both, let's combine
-                if (mjd_d1[0]-mjd[0])>deltamjd*0.5: ## should be aligned at least by half.
+                if (mjd_d1[0]-mjd[0])>deltamjd*0.2: ## should be aligned at least by 20%
                     self.log("Computers not aligned in MJD.")
                     self.log("Quitting!")
+                mjd=0.5*(mjd+mjd_d1)
+                mjd=mjd[istart:iend]
+                ra=raint(mjd)
+                dec=decint(mjd)
+                gall=gallint(mjd)
+                galb=galbint(mjd)
+                self.log("Writing MJD file...")
+                fitsio.write(self.root+"/mjd.fits", np.array(mjd,dtype=[('mjd','f4')]))
+                self.log("Writing coordinate files")
+                fitsio.write(self.root+"/coords.fits",
+                             np.rec.fromarray([ra,dec,gall,galb],
+                            dtype=[('ra','f4'),('dec','f4'),('lgal','f4'),('bgal','f4')]))
+            
                 
                 
                 
