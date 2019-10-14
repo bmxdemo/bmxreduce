@@ -93,19 +93,29 @@ class reduce:
 
     def stage_one(self):
         ## debug
-        ##D##self.tags=self.tags[:2]+self.tags[-2:]
+        #self.tags=self.tags[:2]+self.tags[-2:]
 
         self.set_logto("stage1")
         self.log("Starting Stage1 reduction on %s"%self.timenow_string())
+        cutdirs={}
         for ext in 'D1','D2':
             data=[]
             for fn in [self.dm.getrawfname(tag) for tag in self.tags]:
                 if ext=='D2':
                     fn=fn.replace('D1','D2')
-                self.log("Loading %s..."%fn)
+                self.log("Loading %s ..."%fn)
                 data.append(bmxdata.BMXFile(fn))
 
             ncuts=data[0].ncuts
+            for cut in range(ncuts):
+                if cut not in cutdirs:
+                    cdir=self.root+"/cut%i"%cut
+                    cutdirs[cut]=cdir
+                    if not os.path.isdir(cdir):
+                        self.log("Creating %s ..."%cdir)
+                        os.mkdir(cdir)
+
+
             assert (data[0].nChan==2)
             assert (data[0].nCards==2)
             ## first check for continuity of mjd
@@ -138,7 +148,7 @@ class reduce:
                     istart=0
                     iend=len(mjd)
                 print ("Cutting %i %i samples at beginning / end..."%(istart,len(mjd)-iend))
-
+                print ("Numbr of rows: ",iend-istart)
             else:
                 ## we now have both, let's combine
                 if (mjd_d1[0]-mjd[0])>deltamjd*0.2: ## should be aligned at least by 20%
@@ -156,8 +166,30 @@ class reduce:
                 fitsio.write(self.root+"/coords.fits",
                              np.rec.fromarrays([ra,dec,gall,galb],
                             dtype=[('ra','f4'),('dec','f4'),('lgal','f4'),('bgal','f4')]))
-            
-                
+            ## Now let's dump our guys
+            for cut in range(ncuts):
+                nfreq=data[0].nP[cut]
+                for ch1 in range(1,5): ## hardcoded, yes, but can become more flexible later
+                    for ch2 in range(ch1,5):
+                        if (ch1==ch2):
+                            name="chan%i_%i"%(ch1,cut)
+                            dataR=np.vstack([d.data[name] for d in data])[istart:iend]
+                            outfn=cutdirs[cut]+'/auto_%i.fits'%(ch1+4*(ext=='D2'))
+                            self.log("Writing %s ... "%outfn)
+                            fitsio.write(outfn,dataR,clobber=True)
+                        else:
+                            nameR='chan%ix%iR_%i'%(ch1,ch2,cut)
+                            dataR=np.vstack([d.data[nameR] for d in data])[istart:iend]
+                            nameI='chan%ix%iI_%i'%(ch1,ch2,cut)
+                            dataI=np.vstack([d.data[nameI] for d in data])[istart:iend]
+                            outfn=cutdirs[cut]+'/cross_%i%i.fits'%(ch1+4*(ext=='D2'),ch2+4*(ext=='D2'))
+                            self.log("Writing %s ..."%outfn)
+                            fitsio.write(outfn,dataR,clobber=True)
+                            fitsio.write(outfn,dataI)
+
+
+
+                            
                 
                 
         
