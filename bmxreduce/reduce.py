@@ -44,6 +44,7 @@ class reduce:
         
         if (self.logfile is not None):
             self.logfile.close()
+            self.logfile=None
         self.logtag=logtag
         if logtag is not None:
             self.logfile = open(os.path.join(self.root,self.logtag+".log"),'w')
@@ -61,22 +62,25 @@ class reduce:
 
     def go(self):
         stage=self.from_stage
+        self.set_stage(stage)
         while stage<self.to_stage:
-            self.set_stage(stage)
             stage+=1
             if (stage==1):
                 ok=self.stage_one()
 
             self.set_logto(None)
             if not ok:
-                print ("Stage failed.")
-                return
-            
+                self.log ("Stage failed.")
+                break
+            else:
+                self.log("Stage complete.")
+                self.set_stage(stage)
+        self.log("All done.")
 
     def load_meta(self):
-        tagfn=self.root+"/tags"
-        if os.path.isfile(tagfn):
-            self.meta=set([tag.replace("\n","") for tag in open(tagn).readlines()])
+        metafn=self.root+"/meta"
+        if os.path.isfile(metafn):
+            self.meta=set([meta.replace("\n","") for meta in open(metafn).readlines()])
         else:
             self.meta=set()
 
@@ -92,8 +96,9 @@ class reduce:
         return datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
 
     def stage_one(self):
-        ## debug
-        #self.tags=self.tags[:2]+self.tags[-2:]
+        debug=False
+        if debug:
+            self.tags=self.tags[:1]+self.tags[-1:]
 
         self.set_logto("stage1")
         self.log("Starting Stage1 reduction on %s"%self.timenow_string())
@@ -124,8 +129,9 @@ class reduce:
             for i in range(len(data)-1):
                 if data[i+1].data['mjd'][0]-data[i].data['mjd'][-1]>deltamjd*1.1:
                     self.log("Tags %s %s discontinous in MJD."%(self.tags[i],self.tags[i+1]))
-                    self.log("Quitting!")
-                    return False
+                    if not debug: ## during debug we work with discontinous files
+                        self.log("Quitting!")
+                        return False
             mjd=np.hstack([d.data['mjd'] for d in data])
             if ext=='D1':
                 mjd_d1=mjd
@@ -161,14 +167,32 @@ class reduce:
                 gall=gallint(mjd)
                 galb=galbint(mjd)
                 self.log("Writing MJD file...")
-                fitsio.write(self.root+"/mjd.fits", np.array(mjd,dtype=[('mjd','f4')]))
+                fitsio.write(self.root+"/mjd.fits", np.array(mjd,dtype=[('mjd','f4')]),clobber=True)
                 self.log("Writing coordinate files")
                 fitsio.write(self.root+"/coords.fits",
                              np.rec.fromarrays([ra,dec,gall,galb],
-                            dtype=[('ra','f4'),('dec','f4'),('lgal','f4'),('bgal','f4')]))
+                             dtype=[('ra','f4'),('dec','f4'),('lgal','f4'),('bgal','f4')]),
+                             clobber=True)
+                ## now also write the labjack
+                labjack=np.vstack([d.data['lj_diode'] for d in data])[istart:iend]
+                if labjack.sum()==0:
+                    self.log("No labjack diode...")
+                    self.add_meta("no_diode")
+                else:
+                    outfn=self.root+"/diode.fits"
+                    self.log("Writing %s ... "%outfn)
+                    fitsio.write(outfn,labjack,clobber=True)
+                    
             ## Now let's dump our guys
             for cut in range(ncuts):
                 nfreq=data[0].nP[cut]
+                if (ext=='D1'):
+                    outfn=cutdirs[cut]+"/freq.fits"
+                    self.log("Writing %s ... "%outfn)
+                    fitsio.write(outfn,data[0].freq[cut],clobber=True)
+                    if (cut==1) and abs(data[0].freq[cut].mean()-1420.0)<5:
+                        self.log("Galactic cut present ...")
+                        self.add_meta("galactic_cut")
                 for ch1 in range(1,5): ## hardcoded, yes, but can become more flexible later
                     for ch2 in range(ch1,5):
                         if (ch1==ch2):
@@ -186,9 +210,11 @@ class reduce:
                             self.log("Writing %s ..."%outfn)
                             fitsio.write(outfn,dataR,clobber=True)
                             fitsio.write(outfn,dataI)
+        #done
+        self.log("Complete.")
+        return True
 
-
-
+                            
                             
                 
                 

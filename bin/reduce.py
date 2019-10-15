@@ -38,13 +38,22 @@ elif command=="reduce":
             os.system(command)
             break
 elif command=="cron":
-    print ("fix this")
+    cmdlist=[]
+    for pas in dm.passages():
+        pstage=dm.reduce_stage('pas',pas[0])
+        print ("Passage ",pas[0],"reduced before to stage:",pstage)
+        if (pstage<1):
+            command=get_cmd(pas)
+            cmdlist.append(command)
+
+
+
     sys.exit(1)
-    f = br.farmit.farmit('bin/reduce_batch.py', args={'t':dm.tags},
+    f = br.farmit.farmit('bin/reduce_batch.py', args={'t':cmdlist},
                   names=['BMX_'+tag for tag in dm.tags],
                   reqs={'N':2,'X':0,'priority':'low','mode':'bycore1'})
     f.writejobfiles()
-    f.runjobs(maxjobs=500)
+    #f.runjobs(maxjobs=500)
             
 else:
     print ("Command %s not understood."%command)
