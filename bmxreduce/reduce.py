@@ -15,12 +15,20 @@ from scipy.interpolate import interp1d
 
 class reduce:
     def __init__(self,typ, name, tags, from_stage=0, to_stage=1):
+        print ("\n- - - - - - \nStarting ... ")
         self.typ=typ
         assert (typ in ['pas','fra'])
         self.name=name
         self.tags=tags
         self.dm=datamanager()
         self.root= self.dm.reduce_root(typ,name)
+        if not os.path.isdir(self.root):
+            os.mkdir(self.root)
+            self.set_stage(0)
+            with open(self.root+"/tags",'w') as ft:
+                for t in tags:
+                    ft.write(t+"\n")
+
         self.cstage = self.dm.reduce_stage (typ,name)
         self.load_meta()
         if typ=="pas": self.add_meta("passage")
@@ -28,14 +36,6 @@ class reduce:
         self.from_stage = from_stage
         self.to_stage = to_stage
         self.set_logto(None)
-        
-        if not os.path.isdir(self.root):
-            os.mkdir(self.root)
-            self.set_stage(0)
-            with open(self.root+"/tags",'w') as ft:
-                for t in tags:
-                    ft.write(t+"\n")
-        self.log ("\n- - - - - - ")
         self.log ("Initialized reduce object. Root = %s "%self.root)
 
     def set_logto(self,logtag):
@@ -174,7 +174,7 @@ class reduce:
                              dtype=[('ra','f4'),('dec','f4'),('lgal','f4'),('bgal','f4')]),
                              clobber=True)
                 ## now also write the labjack
-                labjack=np.vstack([d.data['lj_diode'] for d in data])[istart:iend]
+                labjack=np.hstack([d.data['lj_diode'] for d in data])[istart:iend]
                 if labjack.sum()==0:
                     self.log("No labjack diode...")
                     self.add_meta("no_diode")

@@ -7,8 +7,16 @@ import sys,os
 reduce_home=os.path.abspath(os.path.dirname(sys.argv[0])+"/..")
 sys.path.append(reduce_home)
 import bmxreduce as br
+from optparse import OptionParser
 
-typ,nam,tags=sys.argv[1:4]
-r=br.reduce(typ,nam,tags.split(','))
+parser = OptionParser()
+parser.add_option("-x", dest="typ", type="str", default='pas')
+parser.add_option("-t", dest="tags", type="str", default='')
+parser.add_option("-n", dest="name", type="str", default='')
+(o, args) = parser.parse_args()
+
+
+
+r=br.reduce(o.typ,o.name,o.tags.split(','))
 r.go()
 

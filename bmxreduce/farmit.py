@@ -161,12 +161,12 @@ class farmit(object):
             i = 0
             ntotal = len(self.jobfilenames)
             while True:
-                try:
-                    njobs = self.getnjobs()
-                except:
-                    # If error, don't submit more jobs and try again
-                    print('wq ls failed, trying again...')
-                    njobs = maxjobs
+                #try:
+                njobs = self.getnjobs()
+                #except:
+                #    # If error, don't submit more jobs and try again
+                #    print('wq ls failed, trying again...')
+                #    njobs = maxjobs
                 nsubmit = maxjobs - njobs
                 for k in range(nsubmit):
                     if i<ntotal:
@@ -180,7 +180,7 @@ class farmit(object):
 
     def submitjob(self, fn):
         """Submit a single job file"""
-        cmd = '/astro/u/astrodat/local/wq/binary/bin/wq sub -b {:s}'.format(fn)
+        cmd = 'source ~/.bashrc; wq sub -b {:s}'.format(fn)
         #cmd = 'nohup /astro/u/astrodat/local/bin/wq.exe sub {:s} 2>&1 >{:s}.wqlog &'.format(fn,fn)
         #cmd = 'nohup /astro/u/astrodat/local/bin/wq.exe sub {:s} 2>&1 > /dev/null &'.format(fn)
         os.system(cmd)
@@ -204,6 +204,7 @@ class farmit(object):
     def getnjobs(self):
         """Get number of running jobs"""
         res = subprocess.check_output('/astro/u/astrodat/local/bin/wq.exe ls -u {:s}'.format(os.getlogin()), shell=True)
+        res=res.decode("utf-8") 
         ind1 = res.find('Jobs:')
         ind2 = res.find('Running:')
         njobs = int(res[(ind1+5):ind2])
