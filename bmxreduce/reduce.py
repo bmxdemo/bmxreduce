@@ -125,13 +125,13 @@ class reduce:
             assert (data[0].nCards==2)
             ## first check for continuity of mjd
             mjd=data[0].data['mjd']
-            deltamjd=(mjd[1:]-mjd[:-1]).mean()
-            for i in range(len(data)-1):
-                if data[i+1].data['mjd'][0]-data[i].data['mjd'][-1]>deltamjd*1.1:
-                    self.log("Tags %s %s discontinous in MJD."%(self.tags[i],self.tags[i+1]))
-                    if not debug: ## during debug we work with discontinous files
-                        self.log("Quitting!")
-                        return False
+            deltamjd=data[0].deltaT/(24*3600)
+            #for i in range(len(data)-1):
+            #    if data[i+1].data['mjd'][0]-data[i].data['mjd'][-1]>deltamjd*1.1:
+            #        self.log("Tags %s %s discontinous in MJD."%(self.tags[i],self.tags[i+1]))
+            #        if not debug: ## during debug we work with discontinous files
+            #            self.log("Quitting!")
+            #            return False
             mjd=np.hstack([d.data['mjd'] for d in data])
             if ext=='D1':
                 mjd_d1=mjd
@@ -154,20 +154,27 @@ class reduce:
                     istart=0
                     iend=len(mjd)
                 print ("Cutting %i %i samples at beginning / end..."%(istart,len(mjd)-iend))
-                print ("Numbr of rows: ",iend-istart)
+                print ("Number of samples: ",iend-istart)
             else:
                 ## we now have both, let's combine
                 if (mjd_d1[0]-mjd[0])>deltamjd*0.2: ## should be aligned at least by 20%
                     self.log("Computers not aligned in MJD.")
                     self.log("Quitting!")
-                mjd=0.5*(mjd+mjd_d1)
-                mjd=mjd[istart:iend]
+                mjd=0.5*(mjd[istart:iend]+mjd_d1[istart:iend])
+                ## Let's fix MJD, to be really continous
+                mjdfix=np.arange(iend-istart)*deltamjd
+                mjdfix+=mjd.mean()-mjdfix.mean()
+                if np.any(np.abs(mjdfix-mjd)>deltamjd):
+                    self.log("Tags %s %s discontinous in MJD."%(self.tags[i],self.tags[i+1]))
+                    if not debug: ## during debug we work with discontinous files
+                        self.log("Quitting!")
+                        return False
                 ra=raint(mjd)
                 dec=decint(mjd)
                 gall=gallint(mjd)
                 galb=galbint(mjd)
                 self.log("Writing MJD file...")
-                fitsio.write(self.root+"/mjd.fits", np.array(mjd,dtype=[('mjd','f4')]),clobber=True)
+                fitsio.write(self.root+"/mjd.fits", np.array(mjdfix,dtype=[('mjd','f8')]),clobber=True)
                 self.log("Writing coordinate files")
                 fitsio.write(self.root+"/coords.fits",
                              np.rec.fromarrays([ra,dec,gall,galb],

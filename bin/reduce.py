@@ -13,7 +13,7 @@ dm.setPassages()
 command=sys.argv[1] if len(sys.argv)>1 else "list"
 
 def get_cmd(tags):
-    return "bin/reduce_do.py pas %s %s"%(tags[0],",".join(tags))
+    return "bin/reduce_do.py -x pas -n %s -t %s"%(tags[0],",".join(tags))
 
 
 print ("\n--------------\n")
