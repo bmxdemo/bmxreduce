@@ -8,9 +8,18 @@ from astropy.time import Time
 import astropy.units as u
 
 
+def BMXLatLon():
+    # latitude=40.878180, longitude_deg=-72.856640
+    lat=40.87792
+    lon=-72.85852
+    return lat,lon
+
+
 
 def location():
-    return EarthLocation(lat=40.87792*u.deg, lon=-72.85852*u.deg, height=0*u.m)
+    lat,lon=BMXLatLon()
+    return EarthLocation(lat=lat*u.deg, lon=lon*u.deg, height=0*u.m)
+
 
 def time2coord(time):
     point=AltAz(alt=90*u.deg, az=0*u.deg, location=location(), obstime=time)

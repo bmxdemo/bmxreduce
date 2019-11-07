@@ -10,7 +10,7 @@ import bmxdata
 import fitsio
 from .datamanager import datamanager
 from . import telescope
-
+from .satellites import Satellites
 from scipy.interpolate import interp1d
 
 class reduce:
@@ -36,6 +36,7 @@ class reduce:
         self.from_stage = from_stage
         self.to_stage = to_stage
         self.set_logto(None)
+        self.logtag_extra=None
         self.log ("Initialized reduce object. Root = %s "%self.root)
 
     def set_logto(self,logtag):
@@ -48,14 +49,22 @@ class reduce:
         self.logtag=logtag
         if logtag is not None:
             self.logfile = open(os.path.join(self.root,self.logtag+".log"),'w')
+
+    def set_logtag_extra(self,logtag_extra):
+        self.logtag_extra=logtag_extra
     
     def log(self,*m):
         if self.logfile is not None:
+            if (self.logtag_extra is not None):
+                self.logfile.write("(%s) "%self.logtag_extra)
             print (*m, file=self.logfile)
         if self.logtag is None:
             print (*m)
         else:
-            print ("%s:"%self.logtag,*m)
+            if self.logtag_extra is not None:
+                print ("%s (%s):"%(self.logtag,self.logtag_extra),*m)
+            else:
+                print ("%s:"%self.logtag,*m)
             
     def set_stage(self,i):
         open(self.root+"/stage",'w').write(str(i)+"\n")
@@ -111,6 +120,12 @@ class reduce:
                 self.log("Loading %s ..."%fn)
                 data.append(bmxdata.BMXFile(fn))
 
+            if (hasattr(data[0],'wires')):
+                self.log("Writing wires file ...")
+                with open(self.root+"/wires",'wb' if ext=='D1' else 'ab') as f:
+                    for i in range(1,5):
+                        f.write (data[0].wires[i]+b"\n")
+
             ncuts=data[0].ncuts
             for cut in range(ncuts):
                 if cut not in cutdirs:
@@ -119,8 +134,6 @@ class reduce:
                     if not os.path.isdir(cdir):
                         self.log("Creating %s ..."%cdir)
                         os.mkdir(cdir)
-
-
             assert (data[0].nChan==2)
             assert (data[0].nCards==2)
             ## first check for continuity of mjd
@@ -189,6 +202,19 @@ class reduce:
                     outfn=self.root+"/diode.fits"
                     self.log("Writing %s ... "%outfn)
                     fitsio.write(outfn,labjack,clobber=True)
+                ## Now, set up satellites
+                self.set_logtag_extra("sats")
+                sats=Satellites(mjdfix, logfn=self.log)
+                satpred=sats.get_predictions()
+                self.set_logtag_extra(None)
+                self.log("Writing satellites file...")
+                clobber=True
+                for altmax,name,alt,az in sorted(satpred,reverse=True):
+                    fitsio.write(self.root+"/satellites.fits",
+                                 np.rec.fromarrays([alt,az],
+                                 dtype=[('alt','f4'),('az','f4')]),
+                                 clobber=clobber,header={'SAT_ID':name, 'MAX_ALT:':altmax})
+                    clobber=False
                     
             ## Now let's dump our guys
             for cut in range(ncuts):
@@ -198,8 +224,8 @@ class reduce:
                     self.log("Writing %s ... "%outfn)
                     fitsio.write(outfn,data[0].freq[cut],clobber=True)
                     if (cut==1) and abs(data[0].freq[cut].mean()-1420.0)<5:
-                        self.log("Galactic cut present ...")
-                        self.add_meta("galactic_cut")
+                        self.log("Galactic 21cm cut present ...")
+                        self.add_meta("galactic21_cut")
                 for ch1 in range(1,5): ## hardcoded, yes, but can become more flexible later
                     for ch2 in range(ch1,5):
                         if (ch1==ch2):
