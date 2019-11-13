@@ -42,7 +42,7 @@ elif command=="cron":
     for pas in dm.passages():
         pstage=dm.reduce_stage('pas',pas[0])
         print ("Passage ",pas[0],"reduced before to stage:",pstage)
-        if (pstage<1):
+        if (pstage>=0) and (pstage<1):
             paslist.append(pas)
 
     names=[p[0] for p in paslist]
@@ -51,7 +51,7 @@ elif command=="cron":
                          names=['BMX_'+n for n in names],
                   reqs={'N':1,'X':0,'priority':'low','mode':'bynode'})
     f.writejobfiles()
-    f.runjobs(maxjobs=10)
+    f.runjobs(maxjobs=50)
             
 else:
     print ("Command %s not understood."%command)
