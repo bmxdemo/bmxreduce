@@ -155,13 +155,17 @@ class reduce:
                 mjdlist=np.arange(mjd[0],mjd[-1]+0.005,0.005)## every 7 mins or so
                 ra,dec,gall,galb=telescope.mjd2coords(mjdlist)
                 ## set up interpolator
+                ## we now need to make sure ra is always rising
+                while (np.any( (ra[1:]-ra[:-1])<0)):
+                    i=np.argmax((ra[1:]-ra[:-1])<0)
+                    ra[:i+1]-=2*np.pi
                 raint=interp1d(mjdlist,ra)
                 decint=interp1d(mjdlist,dec)
                 gallint=interp1d(mjdlist,gall)
                 galbint=interp1d(mjdlist,galb)
                 radeg=raint(mjd)*180/np.pi
                 if self.typ=='pas':
-                    istart=np.where(radeg>270.0)[0][0]-1 ## we should be safely away from corner cases
+                    istart=np.where(radeg>270.0-360)[0][0]-1 ## we should be safely away from corner cases
                     iend=np.where(radeg<330.0)[0][-1]+1
                 else:
                     istart=0
@@ -182,12 +186,13 @@ class reduce:
                     if not debug: ## during debug we work with discontinous files
                         self.log("Quitting!")
                         return False
+                mjd=mjdfix
                 ra=raint(mjd)
                 dec=decint(mjd)
                 gall=gallint(mjd)
                 galb=galbint(mjd)
                 self.log("Writing MJD file...")
-                fitsio.write(self.root+"/mjd.fits", np.array(mjdfix,dtype=[('mjd','f8')]),clobber=True)
+                fitsio.write(self.root+"/mjd.fits", np.array(mjd,dtype=[('mjd','f8')]),clobber=True)
                 self.log("Writing coordinate files")
                 fitsio.write(self.root+"/coords.fits",
                              np.rec.fromarrays([ra,dec,gall,galb],

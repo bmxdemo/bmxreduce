@@ -180,7 +180,7 @@ class farmit(object):
 
     def submitjob(self, fn):
         """Submit a single job file"""
-        cmd = 'source ~/.bashrc; wq sub -b {:s}'.format(fn)
+        cmd = 'source ~/.bashrc; wq sub -b {:s} 2>&1'.format(fn)
         #cmd = 'nohup /astro/u/astrodat/local/bin/wq.exe sub {:s} 2>&1 >{:s}.wqlog &'.format(fn,fn)
         #cmd = 'nohup /astro/u/astrodat/local/bin/wq.exe sub {:s} 2>&1 > /dev/null &'.format(fn)
         os.system(cmd)
