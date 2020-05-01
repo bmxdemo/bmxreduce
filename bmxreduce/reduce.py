@@ -14,13 +14,13 @@ from .satellites import Satellites
 from scipy.interpolate import interp1d
 
 class reduce:
-    def __init__(self,typ, name, tags, from_stage=0, to_stage=1):
+    def __init__(self,typ, name, tags, extraname="", from_stage=0, to_stage=1):
         print ("\n- - - - - - \nStarting ... ")
         self.typ=typ
         assert (typ in ['pas','fra'])
         self.name=name
         self.tags=tags
-        self.dm=datamanager()
+        self.dm=datamanager(extraname=extraname)
         self.root= self.dm.reduce_root(typ,name)
         if not os.path.isdir(self.root):
             os.mkdir(self.root)
@@ -152,7 +152,7 @@ class reduce:
                 ## Now caclulate ra/dec so that we can get cut into our passage
                 ##
                 self.log('Calculating celestical coords...')
-                mjdlist=np.arange(mjd[0],mjd[-1]+0.005,0.005)## every 7 mins or so
+                mjdlist=np.arange(mjd[0]-1e-5,mjd[-1]+0.005,0.005)## every 7 mins or so
                 ra,dec,gall,galb=telescope.mjd2coords(mjdlist)
                 ## set up interpolator
                 ## we now need to make sure ra is always rising
@@ -169,7 +169,7 @@ class reduce:
                     iend=np.where(radeg<330.0)[0][-1]+1
                 else:
                     istart=0
-                    iend=len(mjd)
+                    iend=len(mjd)-1 ## cut one sample at the end to make sure D2 is OK
                 print ("Cutting %i %i samples at beginning / end..."%(istart,len(mjd)-iend))
                 print ("Number of samples: ",iend-istart)
             else:
@@ -177,22 +177,28 @@ class reduce:
                 if (mjd_d1[0]-mjd[0])>deltamjd*0.2: ## should be aligned at least by 20%
                     self.log("Computers not aligned in MJD.")
                     self.log("Quitting!")
-                mjd=0.5*(mjd[istart:iend]+mjd_d1[istart:iend])
+                mjd_d1=mjd_d1[istart:iend]
+                mjd_d2=mjd[istart:iend]
+                mjd=0.5*(mjd_d1+mjd_d2)
                 ## Let's fix MJD, to be really continous
-                mjdfix=np.arange(iend-istart)*deltamjd
+                mjdfix=np.arange(len(mjd))*deltamjd
                 mjdfix+=mjd.mean()-mjdfix.mean()
-                if np.any(np.abs(mjdfix-mjd)>deltamjd):
-                    self.log("Tags %s %s discontinous in MJD."%(self.tags[i],self.tags[i+1]))
-                    if not debug: ## during debug we work with discontinous files
-                        self.log("Quitting!")
-                        return False
+                #print (deltamjd, mjdfix-mjd)
+                # up to 0.5s discrepancy
+                if np.any(np.abs(mjdfix-mjd)>max(deltamjd,0.5/(3600*24))):
+                    self.log("Warning: Tag perhaps discontinous in MJD.")
+                    #if not debug: ## during debug we work with discontinous files
+                    #    self.log("Quitting!")
+                    #    return False
                 mjd=mjdfix
                 ra=raint(mjd)
                 dec=decint(mjd)
                 gall=gallint(mjd)
                 galb=galbint(mjd)
-                self.log("Writing MJD file...")
-                fitsio.write(self.root+"/mjd.fits", np.array(mjd,dtype=[('mjd','f8')]),clobber=True)
+                self.log("Writing MJD file...",mjd.shape,mjd_d1.shape,mjd_d2.shape)
+                fitsio.write(self.root+"/mjd.fits", np.rec.fromarrays([mjd,mjd_d1,mjd_d2],
+                            dtype=[('mjd','f8'),('mjd_d1','f8'),('mjd_d2','f8')]),
+                            clobber=True)
                 self.log("Writing coordinate files")
                 fitsio.write(self.root+"/coords.fits",
                              np.rec.fromarrays([ra,dec,gall,galb],

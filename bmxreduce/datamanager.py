@@ -7,9 +7,11 @@ from . import telescope
 
 class datamanager(object):
     
-    def __init__(self):
+    def __init__(self, extraname=""):
         # Set up dirs
+        self.extraname=extraname
         self.getdirs()
+        
         return
 
     def getdirs(self):
@@ -150,7 +152,8 @@ class datamanager(object):
             ext = '_D1'
         else:
             ext = ''
-        return os.path.join(self.dataroot,taginfo[0]+taginfo[1], tag + ext+'.data')
+        return os.path.join(self.dataroot,taginfo[0]+taginfo[1], tag +
+                            self.extraname+ ext+'.data')
 
     def UTCTimesStr(self):
         return ['20%s-%s-%sT%s:%s:00'%(tag[0:2],tag[2:4],tag[4:6],tag[7:9], tag[9:11]) for tag in self._tags]
