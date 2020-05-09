@@ -17,8 +17,9 @@ def check_file(fname):
     else:
         def getstatus(line):
             return line.split(":")[1].split()[0]
-        status0,status1 = [getstatus(line) for line in [line0,line1]]
-        if getstatus(line0) != getstatus(line1):
+        status0, status1 = [getstatus(line) for line in [line0,line1]]
+        bad0, bad1 = ['BAD' in line for line in [line0,line1]]
+        if (status0 != status1) or (bad0 != bad1):
             msg = "Status change from %s to %s"%(status1,status0)
         else:
             msg = "No change"
