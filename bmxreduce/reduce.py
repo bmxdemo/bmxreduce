@@ -146,8 +146,19 @@ class reduce:
             #            self.log("Quitting!")
             #            return False
             mjd=np.hstack([d.data['mjd'] for d in data])
+            if  data[0].version>=10:
+                temp_fgpa = np.vstack([d.data['temp_fgpa'] for d in data])
+                temp_adc = np.vstack([d.data['temp_adc'] for d in data])
+                temp_frontend = np.vstack([d.data['temp_frontend'] for d in data])
+                have_temps = True
+            else:
+                have_temps = False
             if ext=='D1':
                 mjd_d1=mjd
+                if have_temps:
+                    temp_fgpa_D1 = temp_fgpa
+                    temp_adc_D1 = temp_adc
+                    temp_frontend_D1 =temp_frontend
                 ##
                 ## Now caclulate ra/dec so that we can get cut into our passage
                 ##
@@ -199,7 +210,7 @@ class reduce:
                 fitsio.write(self.root+"/mjd.fits", np.rec.fromarrays([mjd,mjd_d1,mjd_d2],
                             dtype=[('mjd','f8'),('mjd_d1','f8'),('mjd_d2','f8')]),
                             clobber=True)
-                self.log("Writing coordinate files")
+                self.log("Writing coordinate file...")
                 fitsio.write(self.root+"/coords.fits",
                              np.rec.fromarrays([ra,dec,gall,galb],
                              dtype=[('ra','f4'),('dec','f4'),('lgal','f4'),('bgal','f4')]),
@@ -213,6 +224,17 @@ class reduce:
                     outfn=self.root+"/diode.fits"
                     self.log("Writing %s ... "%outfn)
                     fitsio.write(outfn,labjack,clobber=True)
+                if have_temps:
+                    self.add_meta("have_temperatures")
+                    self.log("Writing temperature file")
+                    fitsio.write(self.root+"/temperatures.fits",
+                                 np.rec.fromarrays(
+                                     [np.hstack((temp_fgpa_D1[istart:iend,:],temp_fgpa[istart:iend,:])),
+                                      np.hstack((temp_adc_D1[istart:iend,:],temp_adc[istart:iend,:])),
+                                      np.hstack((temp_frontend_D1[istart:iend,:],temp_frontend[istart:iend,:]))],
+                                     dtype=[('fgpa','4f4'),('adc','4f4'),('frontend','4f4')]),
+                             clobber=True)
+                    
                 ## Now, set up satellites
                 self.set_logtag_extra("sats")
                 sats=Satellites(mjdfix, logfn=self.log)

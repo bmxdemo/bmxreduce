@@ -19,8 +19,10 @@ def check_file(fname):
             return line.split(":")[1].split()[0]
         status0, status1 = [getstatus(line) for line in [line0,line1]]
         bad0, bad1 = ['BAD' in line for line in [line0,line1]]
-        if (status0 != status1) or (bad0 != bad1):
+        if (status0 != status1):
             msg = "Status change from %s to %s"%(status1,status0)
+        elif (bad0 != bad1):
+            msg = "Status change in BAD channels"
         else:
             msg = "No change"
             ok = True
@@ -39,7 +41,7 @@ if (not ok1) or (not ok2):
     sender_email = "anze@bnl.gov"  # Enter your address
     password = open('/astro/u/bmx/bmxreduce/astroftp_cron/emailpw').readlines()[0].replace('\n','')
     message = """\
-From: BMX
+From: BMX <anze@bnl.gov>
 Subject: BMX alert
 
 This is an automated email from a script living at

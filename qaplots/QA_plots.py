@@ -88,42 +88,48 @@ def makePlots(dataset):
     freq = hdu_freq[0].data
     hdu_coords = fits.open(dir+'/coords.fits')
     coords = hdu_coords[1].data
-    hdu_diode = fits.open(dir+'/diode.fits')
-    diode = hdu_diode[0].data
     ra=coords['ra']
 
-    i=0
-    N=len(diode)
-    donoff=[]
-    while (diode[i]>0):
-        i+=1
-    while True:
-        while (diode[i]==0):
-            i+=1
-            if i==N: break
-        if i==N: break
-        st=i
+    if os.path.isfile(dir+'/diode.fits'):
+        hdu_diode = fits.open(dir+'/diode.fits')
+        diode = hdu_diode[0].data
+    else:
+        print ("No diode")
+        diode = None
+
+    if diode is not None:
+        i=0
+        N=len(diode)
+        donoff=[]
         while (diode[i]>0):
             i+=1
+        while True:
+            while (diode[i]==0):
+                i+=1
+                if i==N: break
             if i==N: break
-        if i==N: break
-        donoff.append((st,i))
-    donoff=donoff[1:-1] ## skip first and last one
+            st=i
+            while (diode[i]>0):
+                i+=1
+                if i==N: break
+            if i==N: break
+            donoff.append((st,i))
+        donoff=donoff[1:-1] ## skip first and last one
 
-    def process_diode(da,diode):
-        di=[]
-        for i,j in donoff:
-            h=(j-i)
-            a=i-h
-            b=j+h
-            diff=da[i:j].mean(axis=0)-0.5*(da[a:i].mean(axis=0)+da[j:b].mean(axis=0))
-            di.append(diff)
-            da[i:i+h//2]=da[i-h//2:i]
-            da[i+h//2:j]=da[j:j+(j-i-h//2)]
-        di=np.array(di)
-        afreq=di.mean(axis=0)
-        atime=di.mean(axis=1)
-        return da,afreq, atime
+        def process_diode(da,diode):
+            di=[]
+            for i,j in donoff:
+                h=(j-i)
+                a=i-h
+                b=j+h
+                diff=da[i:j].mean(axis=0)-0.5*(da[a:i].mean(axis=0)+da[j:b].mean(axis=0))
+                di.append(diff)
+                da[i:i+h//2]=da[i-h//2:i]
+                da[i+h//2:j]=da[j:j+(j-i-h//2)]
+            di=np.array(di)
+            afreq=di.mean(axis=0)
+            atime=di.mean(axis=1)
+            return da,afreq, atime
 
     def measure_rfi(vec,returnbad=False):
         vecout=np.copy(vec)
@@ -157,7 +163,10 @@ def makePlots(dataset):
         hdu_da = fits.open(dir+'/cut1/auto_%i.fits'%i)
         #da=fitsio.read(dir+'/cut1/auto_%i.fits'%i)
         da = hdu_da[0].data
-        da,afreq,atime=process_diode(da,diode)
+        if diode is not None:
+            da,afreq,atime=process_diode(da,diode)
+        else:
+            afreq,atime = None, None
         rdata.append((da,afreq,atime))
 
     for i,(da,_,_) in enumerate(rdata):
@@ -184,32 +193,44 @@ def makePlots(dataset):
         if args.verbose:
             print("Wrote", pngfile)
 
-    fig = plt.figure(figsize=(20,5))
-    for i,(_,afreq,_) in enumerate(rdata):
-        plt.plot(freq,afreq,label=wires[i])
-    plt.legend()
+    if diode is not None:
+        fig = plt.figure(figsize=(20,5))
+        for i,(_,afreq,_) in enumerate(rdata):
+            plt.plot(freq,afreq,label=wires[i])
+        plt.legend()
 
-    # Write file to web space
-    pngfile = 'afreq.png'
-    pngout = os.path.join(QA_out_dir, pngfile)
-    fig.savefig(pngout, format='png')
-    plt.close()
-    if args.verbose:
-        print("Wrote", pngout)
-    
-    fig = plt.figure(figsize=(20,5))
-    for i,(_,_,atime) in enumerate(rdata):
-        plt.plot(atime,label=wires[i])
-    plt.semilogy()
-    plt.ylim(1e9,2e10)
-    # Write file to web space
-    pngfile = 'atime.png'
-    pngout = os.path.join(QA_out_dir, pngfile)
-    fig.savefig(pngout, format='png')
-    plt.close()
-    if args.verbose:
-        print("Wrote", pngout)
-    
+        # Write file to web space
+        pngfile = 'afreq.png'
+        pngout = os.path.join(QA_out_dir, pngfile)
+        fig.savefig(pngout, format='png')
+        plt.close()
+        if args.verbose:
+            print("Wrote", pngout)
+
+        fig = plt.figure(figsize=(20,5))
+        for i,(_,_,atime) in enumerate(rdata):
+            plt.plot(atime,label=wires[i])
+        plt.semilogy()
+        plt.ylim(1e9,2e10)
+        # Write file to web space
+        pngfile = 'atime.png'
+        pngout = os.path.join(QA_out_dir, pngfile)
+        fig.savefig(pngout, format='png')
+        plt.close()
+        if args.verbose:
+            print("Wrote", pngout)
+    else:
+        fig = plt.figure(figsize=(20,5))
+        plt.text(0.3,0.5, "No diode data.",fontsize=20)
+        pngfile = 'atime.png'
+        pngout = os.path.join(QA_out_dir, pngfile)
+        fig.savefig(pngout, format='png')
+        pngfile = 'afreq.png'
+        pngout = os.path.join(QA_out_dir, pngfile)
+        fig.savefig(pngout, format='png')
+        
+
+
     # Table data
     tableFile = 'table.html'
     tableFull = os.path.join(QA_out_dir, tableFile)
