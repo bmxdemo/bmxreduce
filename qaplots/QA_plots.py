@@ -65,7 +65,8 @@ def getWork():
     
     # remove qa_list from ds_list
     for qa_dir in qa_list:
-        ds_list.remove(qa_dir)
+        if qa_dir in ds_list:
+            ds_list.remove(qa_dir)
 
     return ds_list
 

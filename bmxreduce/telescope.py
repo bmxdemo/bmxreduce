@@ -10,8 +10,11 @@ import astropy.units as u
 
 def BMXLatLon():
     # latitude=40.878180, longitude_deg=-72.856640
-    lat=40.87792
-    lon=-72.85852
+    #lat=40.87792
+    #lon=-72.85852
+    #   fixed numbers based on POC email from Tue Sep 1st, 2020 
+    lat = 40.869951
+    lon =-72.866072
     return lat,lon
 
 

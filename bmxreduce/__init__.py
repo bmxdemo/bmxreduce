@@ -3,7 +3,7 @@ iers.conf.iers_auto_url="file:////gpfs02/astro/workarea/bmxdata/almanac/finals20
 from .datamanager import datamanager
 from .farmit import farmit
 from .reduce import reduce
-
+from .satellites import Satellites
 
 #from .reduce_init import reduce
 #from .mapmanager import mapmanager
