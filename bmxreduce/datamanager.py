@@ -17,8 +17,8 @@ class datamanager(object):
     def getdirs(self):
         """Set up directories. Put here instead of __init__ so other classes can
         inherit this"""
-        self.dataroot = 'data/raw'
-        self.reducedroot='data/reduced'
+        self.dataroot = '/astro/u/bmx/bmxreduce/data/raw'
+        self.reducedroot='/astro/u/bmx/bmxreduce/data/reduced'
         #self.reducedsimroot='data/reduced_sim'
         return
 
@@ -40,10 +40,8 @@ class datamanager(object):
         # Get list of directories with raw data, which let's say are directories
         # matching pattern 20??
         dirs = glob(self.dataroot+'/[0-9][0-9][0-9][0-9]')
-
         # Initialize tag list
         tags = []
-
         # Loop over dirs
         for k,val in enumerate(dirs):
             fn = glob(os.path.join(val,'*.data'))
@@ -52,6 +50,10 @@ class datamanager(object):
                 tags.append(j)
         tags = np.array(tags)
         tags = np.sort(np.unique(tags))
+        
+        if len(tags)==0:
+            print ("No tags??")
+            raise OSError
 
         if applycuts:
             # Load times to cut, convert to datetime objects

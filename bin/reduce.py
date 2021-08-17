@@ -42,7 +42,7 @@ elif command=="cron":
     for pas in dm.passages():
         pstage=dm.reduce_stage('pas',pas[0])
         print ("Passage ",pas[0],"reduced before to stage:",pstage)
-        if (pstage>=0) and (pstage<1):
+        if (pstage>=0) and (pstage<2):
             paslist.append(pas)
 
     names=[p[0] for p in paslist]

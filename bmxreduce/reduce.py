@@ -14,7 +14,7 @@ from .satellites import Satellites
 from scipy.interpolate import interp1d
 
 class reduce:
-    def __init__(self,typ, name, tags, extraname="", from_stage=0, to_stage=1):
+    def __init__(self,typ, name, tags, extraname="", from_stage=-1, to_stage=2):
         print ("\n- - - - - - \nStarting ... ")
         self.typ=typ
         assert (typ in ['pas','fra'])
@@ -33,7 +33,10 @@ class reduce:
         self.load_meta()
         if typ=="pas": self.add_meta("passage")
         if typ=="fra": self.add_meta("fragment")
-        self.from_stage = from_stage
+        if from_stage>=0:
+            self.from_stage = from_stage
+        else:
+            self.from_stage = self.cstage
         self.to_stage = to_stage
         self.set_logto(None)
         self.logtag_extra=None
@@ -75,8 +78,9 @@ class reduce:
         while stage<self.to_stage:
             stage+=1
             if (stage==1):
-                ok=self.stage_one()
-
+                ok = self.stage_one()
+            elif (stage==2):
+                ok = self.stage_two()
             self.set_logto(None)
             if not ok:
                 self.log ("Stage failed.")
@@ -235,19 +239,6 @@ class reduce:
                                      dtype=[('fgpa','4f4'),('adc','4f4'),('frontend','4f4')]),
                              clobber=True)
                     
-                ## Now, set up satellites
-                self.set_logtag_extra("sats")
-                sats=Satellites(mjdfix, logfn=self.log)
-                satpred=sats.get_predictions()
-                self.set_logtag_extra(None)
-                self.log("Writing satellites file...")
-                clobber=True
-                for altmax,name,alt,az in sorted(satpred,reverse=True):
-                    fitsio.write(self.root+"/satellites.fits",
-                                 np.rec.fromarrays([alt,az],
-                                 dtype=[('alt','f4'),('az','f4')]),
-                                 clobber=clobber,header={'SAT_ID':name, 'MAX_ALT:':altmax})
-                    clobber=False
                     
             ## Now let's dump our guys
             for cut in range(ncuts):
@@ -281,10 +272,28 @@ class reduce:
         return True
 
                             
-                            
-                
-                
+    def stage_two(self):
+        debug=False
+        ## Now, set up satellites
+        self.set_logto("stage2")
+        self.log("Starting Stage2 reduction on %s"%self.timenow_string())
+
+        self.set_logtag_extra("sats")
+        mjd = fitsio.read(self.root+"/mjd.fits")['mjd']
+        sats=Satellites(mjd, logfn=self.log)
+        satpred=sats.get_predictions()
+        self.set_logtag_extra(None)
+        self.log("Writing satellites file...")
+        clobber=True
+        for altmax,name,alt,az in sorted(satpred,reverse=True):
+            fitsio.write(self.root+"/satellites.fits",
+                         np.rec.fromarrays([alt,az],
+                         dtype=[('alt','f4'),('az','f4')]),
+                         clobber=clobber,header={'SAT_ID':name, 'MAX_ALT':altmax})
+            clobber=False
+        self.log("Complete.")
+        return True
+
         
-            
         
         

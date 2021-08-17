@@ -6,48 +6,54 @@ import glob
 from orbit_predictor.sources import EtcTLESource
 from orbit_predictor.locations import Location
 from orbit_predictor.predictors import Position
+from orbit_predictor.coordinate_systems import  to_horizon, horizon_to_az_elev
 from .telescope import BMXLatLon
 from astropy.time import Time
 
+
+
 ## stolen from Will Tyndal
 
-def llh_to_altaz(loc1, loc2, radian=False):
+
+def llh_to_altaz(loc1, loc2, new_method=True):
     '''Return the altaz looking from loc2'''
     loc1_llh = loc1.position_llh
     loc2_llh = loc2.position_llh
     loc1_xyz = loc1.position_ecef
     loc2_xyz = loc2.position_ecef
 
-    if radian:
-        coeff = 1
+    if new_method:
+        top_s, top_e, top_z = to_horizon(loc2_llh[0]/180*np.pi, loc2_llh[1]/180*np.pi, loc2.position_ecef, loc1.position_ecef)
+        az,alt = horizon_to_az_elev(top_s, top_e, top_z)
     else:
-        coeff = 180 / np.pi
 
-    dx = loc1_llh[1] - loc2_llh[1]
-    dy = loc1_llh[0] - loc2_llh[0]
-    az = np.arctan(np.float64(dx) / np.float64(dy)) * coeff
-    if dy < 0:
-        az += np.pi * coeff
-    if az > np.pi * coeff:
-        az -= 2 * np.pi * coeff
+        dx = loc1_llh[1] - loc2_llh[1]
+        dy = loc1_llh[0] - loc2_llh[0]
+        az = np.arctan(np.float64(dx) / np.float64(dy)) 
+        if dy < 0:
+            az += np.pi 
+        if az > np.pi:
+            az -= 2 * np.pi 
 
-    # Earth ellipsoid parameters
-    a = 6378.1370
-    b = 6356.752314
-    # earth radius
-    n1 = np.sqrt(loc1_xyz[0]**2 + loc1_xyz[1]**2 + loc1_xyz[2]**2)
-    n2 = np.sqrt(loc2_xyz[0]**2 + loc2_xyz[1]**2 + loc2_xyz[2]**2)
-    dist = np.sqrt((loc1_xyz[0] - loc2_xyz[0])**2 + (loc1_xyz[1] - loc2_xyz[1])**2 + (loc1_xyz[2] - loc2_xyz[2])**2)\
-    # cosA = (b^2 + c^2 - a^2) / 2bc
-    cosalt_center = (n2**2 + dist**2 - n1**2) / (2 * n2 * dist)
-    #print(cosalt, n1+loc1_llh[2], n2+loc2_llh[2], dist)
-    alt_center = np.pi - np.arccos(cosalt_center)
+        # Earth ellipsoid parameters
+        a = 6378.1370
+        b = 6356.752314
+        # earth radius
+        n1 = np.sqrt(loc1_xyz[0]**2 + loc1_xyz[1]**2 + loc1_xyz[2]**2)
+        n2 = np.sqrt(loc2_xyz[0]**2 + loc2_xyz[1]**2 + loc2_xyz[2]**2)
+        dist = np.sqrt((loc1_xyz[0] - loc2_xyz[0])**2 + (loc1_xyz[1] - loc2_xyz[1])**2 + (loc1_xyz[2] - loc2_xyz[2])**2)\
+        # cosA = (b^2 + c^2 - a^2) / 2bc
+        cosalt_center = (n2**2 + dist**2 - n1**2) / (2 * n2 * dist)
+        #print(cosalt, n1+loc1_llh[2], n2+loc2_llh[2], dist)
+        alt_center = np.pi - np.arccos(cosalt_center)
 
-    lat2_center = np.arctan(loc2_xyz[2] / np.sqrt(loc2_xyz[0]**2 + loc2_xyz[1]**2))
-    lat2_corr = loc2_llh[0] / 180 * np.pi - lat2_center
+        lat2_center = np.arctan(loc2_xyz[2] / np.sqrt(loc2_xyz[0]**2 + loc2_xyz[1]**2))
+        lat2_corr = loc2_llh[0] / 180 * np.pi - lat2_center
 
-    alt = (0.5*np.pi - (alt_center + lat2_corr)) * coeff
-    #print(alt, lat2_corr)
+        alt = (0.5*np.pi - (alt_center + lat2_corr)) 
+    az *= 180/np.pi
+    alt *= 180/np.pi
+        
 
     return alt, az
 
@@ -110,7 +116,8 @@ class Satellites:
                 ## now something like this
                 alt,az=np.array([llh_to_altaz(pred.get_position(when_utc=utc),self.loc)
                                  for utc in dtimes_sparse]).T
-                if (np.any(alt>70)):
+                print (sanam, alt.max())
+                if (np.any(alt>70.0)): #debug
                     alt,az=np.array([llh_to_altaz(pred.get_position(when_utc=utc),self.loc)
                                  for utc in dtimes]).T
                     altmax=alt.max()

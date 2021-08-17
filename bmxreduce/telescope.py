@@ -35,7 +35,7 @@ def time2coord(time):
     return ra,dec,gall,galb
 
 def times2coords(times,usecache=True):
-    cafn="cache/times2coords.pickle"
+    cafn="/astro/u/bmx/bmxreduce/cache/times2coords.pickle"
     cad={}
     ncount=0
 
