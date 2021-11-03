@@ -15,6 +15,26 @@ command=sys.argv[1] if len(sys.argv)>1 else "list"
 def get_cmd(tags):
     return "bin/reduce_do.py -x pas -n %s -t %s"%(tags[0],",".join(tags))
 
+def write_condor_job(names, tags, fn):
+    f=open(fn,'w')
+    f.write("""
+Universe        = vanilla
+Executable      = //direct/astro+u/bmx/bmxreduce/bin/reduce_do.py
+request_memory = 17000M
+request_cpus = 1
+Priority        = 4
+GetEnv          = True
+Initialdir      = /direct/astro+u/bmx/bmxreduce
+Input           = /dev/null 
+""")
+    for n,t in zip(names,tags):
+        f.write ('Arguments       = "-n %s -t %s" \n'%(n,t))
+        f.write ('Output          =  /astro/u/bmx/jobfiles/BMX_%s.log \n'%n)
+        f.write ('Error           = /astro/u/bmx/jobfiles/BMX_%s.err \n'%n)
+        f.write ('Queue\n')
+    f.close()
+
+
 
 print ("\n--------------\n")
 if command=='list':
@@ -47,12 +67,11 @@ elif command=="cron":
 
     names=[p[0] for p in paslist]
     tags=[",".join(p) for p in paslist]
-    f = br.farmit ('bin/reduce_do.py', args={'n':names,'t':tags},
-                         names=['BMX_'+n for n in names],
-                  reqs={'N':1,'X':0,'priority':'low','mode':'bynode'})
-    f.writejobfiles()
-    f.runjobs(maxjobs=50)
-            
+    if len(names)>0:
+        write_condor_job(names,tags,'/astro/u/bmx/jobfiles/cron.job')
+        os.system("condor_submit /astro/u/bmx/jobfiles/cron.job")
+    else:
+        print ("Nothing to do.")
 else:
     print ("Command %s not understood."%command)
 
