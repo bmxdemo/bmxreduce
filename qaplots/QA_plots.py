@@ -91,6 +91,12 @@ def makePlots(dataset):
     coords = hdu_coords[1].data
     ra=coords['ra']
 
+    if os.path.isfile(dir+'/temperatures.fits'):
+        hdu_temp = fits.open(dir+'/temperatures.fits')
+        tempe = hdu_temp[1].data
+    else:
+        tempe = None
+
     if os.path.isfile(dir+'/diode.fits'):
         hdu_diode = fits.open(dir+'/diode.fits')
         diode = hdu_diode[0].data
@@ -159,6 +165,7 @@ def makePlots(dataset):
         snr=vecout.max()/vecout.min()
         return rfi,nrfi,snr
 
+
     rdata=[]
     for i in range(1,9):
         hdu_da = fits.open(dir+'/cut1/auto_%i.fits'%i)
@@ -221,14 +228,49 @@ def makePlots(dataset):
         if args.verbose:
             print("Wrote", pngout)
     else:
-        fig = plt.figure(figsize=(20,5))
-        plt.text(0.3,0.5, "No diode data.",fontsize=20)
-        pngfile = 'atime.png'
-        pngout = os.path.join(QA_out_dir, pngfile)
-        fig.savefig(pngout, format='png')
-        pngfile = 'afreq.png'
-        pngout = os.path.join(QA_out_dir, pngfile)
-        fig.savefig(pngout, format='png')
+        if tempe is not None:
+            # box average tempe
+            def boxavg(data):
+                avg = data[:len(data)//100*100]
+                avg = avg.reshape((-1,10)).mean(axis=1)
+                return avg
+            davg= boxavg(ra)
+            fig = plt.figure(figsize=(20,5))
+            plt.plot(davg,boxavg(tempe['fgpa'][:,0]),label='FPGA1')
+            plt.plot(davg,boxavg(tempe['fgpa'][:,1]),label='FPGA2')
+            plt.plot(davg,boxavg(tempe['adc'][:,0]),label='ADC1')
+            plt.plot(davg,boxavg(tempe['adc'][:,1]),label='ADC2')
+            plt.plot(davg,boxavg(tempe['frontend'][:,0]),label='FRONT1')
+            plt.plot(davg,boxavg(tempe['frontend'][:,1]),label='FRONT2')
+            plt.legend()
+            plt.xlabel('ra')
+            plt.ylabel('T [K]')
+            pngfile = 'afreq.png'
+            pngout = os.path.join(QA_out_dir, pngfile)
+            fig.savefig(pngout, format='png')
+            fig = plt.figure(figsize=(20,5))
+            plt.plot(davg,boxavg(tempe['fgpa'][:,2]),label='FPGA3')
+            plt.plot(davg,boxavg(tempe['fgpa'][:,3]),label='FPGA4')
+            plt.plot(davg,boxavg(tempe['adc'][:,2]),label='ADC3')
+            plt.plot(davg,boxavg(tempe['adc'][:,3]),label='ADC4')
+            plt.plot(davg,boxavg(tempe['frontend'][:,2]),label='FRONT3')
+            plt.plot(davg,boxavg(tempe['frontend'][:,3]),label='FRONT4')
+            plt.legend()
+            plt.xlabel('ra')
+            plt.ylabel('T [K]')
+            pngfile = 'atime.png'
+            pngout = os.path.join(QA_out_dir, pngfile)
+            fig.savefig(pngout, format='png')
+
+        else:
+            fig = plt.figure(figsize=(20,5))
+            plt.text(0.3,0.5, "No diode data.",fontsize=20)
+            pngfile = 'atime.png'
+            pngout = os.path.join(QA_out_dir, pngfile)
+            fig.savefig(pngout, format='png')
+            pngfile = 'afreq.png'
+            pngout = os.path.join(QA_out_dir, pngfile)
+            fig.savefig(pngout, format='png')
         
 
 
@@ -257,6 +299,46 @@ def makePlots(dataset):
 
     # Close table
     tableout.close()
+
+    def gettau (data,df):
+        N=len(data)
+        adata = np.hstack((data*np.hamming(N),np.zeros(8*N)))
+        ft = np.abs(np.fft.fft(adata)**2)
+        tau = np.fft.fftfreq(len(adata),df)[np.argmax(ft)]*1000
+        return tau
+
+    ##  tau data
+    cygi1 = np.where(ra>-1.03)[0][0]
+    cygi2 = np.where(ra>-1.03+2*np.pi)[0][0]
+    print (cygi1,cygi2)
+    df = freq[1]-freq[0]
+    print (df)
+    hdu_da = fits.open(dir+'/cut1/cross_24.fits')
+    data = hdu_da[0].data+1j*hdu_da[1].data
+    tau12_1 = gettau(data[cygi1, :],df)
+    tau12_2 = gettau(data[cygi2, :],df)
+    hdu_da = fits.open(dir+'/cut1/cross_68.fits')
+    data = hdu_da[0].data+1j*hdu_da[1].data
+    tau34_1 = gettau(data[cygi1, :],df)
+    tau34_2 = gettau(data[cygi2, :],df)
+
+    tauFile = 'tau.html'
+    tauFull = os.path.join(QA_out_dir, tauFile)
+    tauout = open(tauFull, 'w')
+    if abs(tau12_1)>100 or abs(tau12_2)>100:
+        tauout.write ('<font color="red"> <b>Digitizer 1/2 offset: </b> %3.2f / %3.2f </font> <br>'
+                      %(tau12_1,tau12_2))
+    else:
+        tauout.write ("<b>Digitizer 1/2 offset: </b> %3.2f / %3.2f </font> <br>"%(tau12_1,tau12_2))
+    if abs(tau34_1)>100 or abs(tau34_2)>100:
+        tauout.write ('<font color="red"> <b>Digitizer 3/4 offset: </b> %3.2f / %3.2f </font> <br>'
+                      %(tau34_1,tau34_2))
+    else:
+        tauout.write ("<b>Digitizer 3/4 offset: </b> %3.2f / %3.2f </font> <br>"%(tau34_1,tau34_2))
+    tauout.close()
+
+    print ("Tau diff:",tau12_1,tau12_2,tau34_1,tau34_2)
+
     if args.verbose:
         print("Wrote table file", tableFull)
 
