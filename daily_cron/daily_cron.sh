@@ -9,9 +9,9 @@ export LOGFN=/direct/astro+u/bmx/bmxreduce/daily_cron/logs/`date +%y%m%d`.log
 export LOGFNE=/direct/astro+u/bmx/bmxreduce/daily_cron/logs/`date +%y%m%d`.err
 echo "---------- daily_cron.sh: `date` -------------"  >>$LOGFN 2>>$LOGFNE
 echo "---------------- finalize_transfer -----------" >>$LOGFN 2>>$LOGFNE
-/direct/astro+u/bmx/bmxreduce/daily_cron/finalize_transfer.py -v >> $LOGFN 2>>$LOGFNE
+python /direct/astro+u/bmx/bmxreduce/daily_cron/finalize_transfer.py -v >> $LOGFN 2>>$LOGFNE
 echo "----------------- downloading almanac ------------">>$LOGFN 2>>$LOGFNE
-/direct/astro+u/bmx/bmxreduce/daily_cron/download_almanac.py -v >> $LOGFN 2>>$LOGFNE
+python /direct/astro+u/bmx/bmxreduce/daily_cron/download_almanac.py -v >> $LOGFN 2>>$LOGFNE
 dayName=`date +%a | tr '[:lower:]' '[:upper:]'`
 if [ $dayName = "TUE" ]
 then

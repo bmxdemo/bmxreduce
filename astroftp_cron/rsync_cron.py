@@ -1,4 +1,6 @@
-#! /gpfs01/astro/packages/anaconda/default/bin/python
+#! /usr/bin/python
+#
+#### /gpfs01/astro/packages/anaconda/default/bin/python
 #
 # Make simple and hardcode the directories. This assumes that the
 # directories will not change.
@@ -60,13 +62,15 @@ try:
     #  -m bmxfer1 and -m bmxfer2
     # the "-r" option given below tells rsync to remove source files
     cmd = "%s -m bmxfer1 -t %s -s %s -d %s -r" % (rsync_py, workingDir, sourceDir, destDir,)
-    print "cmd: %s" % (cmd,)\
+    #print "cmd: %s" % (cmd,)\
     #print "Running:",cmd
-    answer = subprocess.check_output(cmd, stderr=subprocess.STDOUT, shell=True)
+    #answer = subprocess.check_output(cmd, stderr=subprocess.STDOUT, shell=True)
+    answer = subprocess.check_call(cmd, stderr=subprocess.STDOUT, shell=True)
     #print "Answer:",answer
     # Now the second machine
     cmd = "%s -m bmxfer2 -t %s -s %s -d %s -r" % (rsync_py, workingDir, sourceDir, destDir,)
-    answer = subprocess.check_output(cmd, stderr=subprocess.STDOUT, shell=True)
+    #answer = subprocess.check_output(cmd, stderr=subprocess.STDOUT, shell=True)
+    answer = subprocess.check_call(cmd, stderr=subprocess.STDOUT, shell=True)
 except:
     print "try error"
     pass

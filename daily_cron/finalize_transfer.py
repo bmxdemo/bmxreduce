@@ -1,4 +1,3 @@
-#! /gpfs01/astro/packages/anaconda/default/bin/python
 #
 # Script to walk the "incoming" directory from the BMX rsync and copy
 # the files there to their final destination.
@@ -30,7 +29,7 @@ try:
     os.chdir(incomingDir)
 except:
     if args.verbose:
-        print "cd failed."
+        print("cd failed.")
     sys.exit(1)
 
 # The following assumes that the "incoming" dirstory has one level
@@ -42,7 +41,7 @@ for dirpath, dirnames, filenames in os.walk(incomingDir):
         try:
             int(dayDir)
         except ValueError:
-            print "Do not recognize day ID",dayDir
+            print("Do not recognize day ID",dayDir)
             continue
         monthDir=dayDir[:4]
         
@@ -54,15 +53,15 @@ for dirpath, dirnames, filenames in os.walk(incomingDir):
         if  not os.path.exists(destDir):
             # Create it
             if args.dryrun:
-                print "Would create directory %s" % (destDir,)
-                print "Would create directory %s" % (rfiDir,)
-                print "Would create directory %s" % (ringDir,)
+                print("Would create directory %s" % (destDir,))
+                print("Would create directory %s" % (rfiDir,))
+                print("Would create directory %s" % (ringDir,))
             else:
                 if args.verbose:
-                    print "Creating %s" % (destDir)
-                os.mkdir(destDir,0755)
-                os.mkdir(rfiDir,0755)
-                os.mkdir(ringDir,0755)
+                    print("Creating %s" % (destDir))
+                os.mkdir(destDir,0o755)
+                os.mkdir(rfiDir,0o755)
+                os.mkdir(ringDir,0o755)
         _,ext=os.path.splitext(name)
         destName = None
         if ext=='.data':
@@ -72,15 +71,15 @@ for dirpath, dirnames, filenames in os.walk(incomingDir):
         elif ext=='.ring':
             destName = os.path.join(ringDir,name)
         else:
-            print "Unrecognized extension",ext
+            print("Unrecognized extension",ext)
             continue
         if args.dryrun:
-            print "Would rename %s to %s" % (fullname, destName,)
+            print("Would rename %s to %s" % (fullname, destName,))
         else:
             try:
                 if args.verbose:
-                    print "Renaming:",fullname,"->",destName
+                    print("Renaming:",fullname,"->",destName)
                 os.rename(fullname,destName)
             except:
-                print "Cannot rename",fullname,"->",destName
+                print("Cannot rename",fullname,"->",destName)
 
