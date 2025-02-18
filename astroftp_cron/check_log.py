@@ -3,6 +3,7 @@ receivers = [line.strip() for line in
 
 import datetime
 import smtplib, ssl
+import subprocess
 
 
 def check_file(fname):
@@ -54,10 +55,15 @@ BMX2: %s
 Last 5 entries:
 %s"""%(msg1, "".join(lines1), msg2, "".join(lines2))
 
-    context = ssl.create_default_context()
-    with smtplib.SMTP_SSL(smtp_server, port, context=context) as server:
-        server.login(sender_email, password)
-        for receiver_email in receivers:
-            server.sendmail(sender_email, receiver_email, message)
+#    context = ssl.create_default_context()
+#    with smtplib.SMTP_SSL(smtp_server, port, context=context) as server:
+#        server.login(sender_email, password)
+#        for receiver_email in receivers:
+#            server.sendmail(sender_email, receiver_email, message)
+    subj = "BMX Alert"
+    for receiver_email in receivers:
+	cmd = "/astro/u/bmx/tgt/sendText.py -m '%s' -s '%s' '%s'" % (message, subj, receiver_email,)
+	answer = subprocess.check_output(cmd, shell=True)
+
 else:
     print ("Everything OK...")
