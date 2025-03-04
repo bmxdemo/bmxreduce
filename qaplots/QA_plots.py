@@ -1,4 +1,4 @@
-#!/cvmfs/astro.sdcc.bnl.gov/SL73/packages/anaconda3/2019.07/bin/python
+#!/cvmfs/astro.sdcc.bnl.gov/SL73/packages/anaconda3/2024.10-1/bin/python
 # coding: utf-8
 
 import numpy as np
